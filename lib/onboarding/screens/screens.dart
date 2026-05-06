@@ -606,7 +606,7 @@ class _NotifPreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Vocabulary',
+                  'Professor Pip',
                   style: TextStyle(fontSize: 12, color: AppColors.muted),
                 ),
                 SizedBox(height: 2),
@@ -809,7 +809,7 @@ class Step09GoalsIntro extends StatelessWidget {
   Widget build(BuildContext context) => _IntroScreen(
     cb: cb,
     icon: Icons.auto_stories_rounded,
-    title: 'Set up Vocabulary to help\nyou achieve your goals',
+    title: 'Set up Professor Pip to help\nyou achieve your goals',
   );
 }
 

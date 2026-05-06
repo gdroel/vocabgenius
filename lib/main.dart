@@ -7,19 +7,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repo = TopicsRepository();
   await repo.load();
-  runApp(VocabGeniusApp(topicsRepo: repo));
+  runApp(ProfessorPipApp(topicsRepo: repo));
 }
 
-class VocabGeniusApp extends StatelessWidget {
+class ProfessorPipApp extends StatelessWidget {
   final TopicsRepository topicsRepo;
-  const VocabGeniusApp({super.key, required this.topicsRepo});
+  const ProfessorPipApp({super.key, required this.topicsRepo});
 
   @override
   Widget build(BuildContext context) {
     return TopicsScope(
       repo: topicsRepo,
       child: MaterialApp(
-        title: 'Vocabulary',
+        title: 'Professor Pip',
         debugShowCheckedModeBanner: false,
         theme: buildOnboardingTheme(),
         home: const OnboardingFlow(),

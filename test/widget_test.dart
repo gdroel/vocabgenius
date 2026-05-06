@@ -5,7 +5,7 @@ import 'package:vocab_genius/topics/topics_repository.dart';
 
 void main() {
   testWidgets('Onboarding boots', (WidgetTester tester) async {
-    await tester.pumpWidget(VocabGeniusApp(topicsRepo: TopicsRepository()));
+    await tester.pumpWidget(ProfessorPipApp(topicsRepo: TopicsRepository()));
     expect(find.text('Get started'), findsOneWidget);
   });
 }
