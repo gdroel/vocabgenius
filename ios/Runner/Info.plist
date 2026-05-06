@@ -8,12 +8,22 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Professor Pip</string>
+	<key>com.posthog.posthog.API_KEY</key>
+	<string>phc_mME8P7kxSAzFuRRdocN2Dygnm6p4sfE5W4byeKyZELoL</string>
+	<key>com.posthog.posthog.POSTHOG_HOST</key>
+	<string>https://us.i.posthog.com</string>
+	<key>com.posthog.posthog.TRACK_APPLICATION_LIFECYCLE_EVENTS</key>
+	<true/>
 	<key>FacebookAppID</key>
 	<string>1668682687507794</string>
 	<key>FacebookClientToken</key>
 	<string>d8d6827f20847ca4b6d7ae0b0372965d</string>
 	<key>FacebookDisplayName</key>
 	<string>Professor Pip</string>
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<true/>
+	<key>FacebookAutoLogAppEventsEnabled</key>
+	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

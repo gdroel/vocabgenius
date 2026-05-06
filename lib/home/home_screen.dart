@@ -6,6 +6,7 @@ import '../onboarding/theme.dart';
 import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
 import '../topics/words_data.dart';
+import 'lockscreen_prompt.dart';
 import 'saved_screen.dart';
 import 'topics_screen.dart';
 
@@ -20,6 +21,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final _bookmarks = <String>{};
   final _rng = Random();
   Word? _current;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowLockscreenPrompt(context);
+    });
+  }
 
   void _refreshIfNeeded(TopicsRepository repo) {
     if (_current == null || !repo.isFollowing(_current!.topicId)) {

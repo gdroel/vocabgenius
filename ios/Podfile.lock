@@ -9,9 +9,16 @@ PODS:
     - FBSDKCoreKit_Basics (= 18.0.3)
   - FBSDKCoreKit_Basics (18.0.3)
   - Flutter (1.0.0)
+  - flutter_local_notifications (0.0.1):
+    - Flutter
   - in_app_purchase_storekit (0.0.1):
     - Flutter
     - FlutterMacOS
+  - PostHog (3.57.5)
+  - posthog_flutter (0.0.1):
+    - Flutter
+    - FlutterMacOS
+    - PostHog (~> 3.22)
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -21,7 +28,9 @@ PODS:
 DEPENDENCIES:
   - facebook_app_events (from `.symlinks/plugins/facebook_app_events/ios`)
   - Flutter (from `Flutter`)
+  - flutter_local_notifications (from `.symlinks/plugins/flutter_local_notifications/ios`)
   - in_app_purchase_storekit (from `.symlinks/plugins/in_app_purchase_storekit/darwin`)
+  - posthog_flutter (from `.symlinks/plugins/posthog_flutter/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
@@ -30,14 +39,19 @@ SPEC REPOS:
     - FBAEMKit
     - FBSDKCoreKit
     - FBSDKCoreKit_Basics
+    - PostHog
 
 EXTERNAL SOURCES:
   facebook_app_events:
     :path: ".symlinks/plugins/facebook_app_events/ios"
   Flutter:
     :path: Flutter
+  flutter_local_notifications:
+    :path: ".symlinks/plugins/flutter_local_notifications/ios"
   in_app_purchase_storekit:
     :path: ".symlinks/plugins/in_app_purchase_storekit/darwin"
+  posthog_flutter:
+    :path: ".symlinks/plugins/posthog_flutter/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   url_launcher_ios:
@@ -49,7 +63,10 @@ SPEC CHECKSUMS:
   FBSDKCoreKit: 65d7f7a7d6fcc3aa6eb6e093ec737a4184fc6049
   FBSDKCoreKit_Basics: 7bc9d8fde8f70985fba2ed7c1d07e319f969a991
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_local_notifications: ad39620c743ea4c15127860f4b5641649a988100
   in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
+  PostHog: 0d805eed9414eb489290c8ea82f99102371bc277
+  posthog_flutter: 631ab870f7daf1ed190deeb2414eb3e347445f37
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 

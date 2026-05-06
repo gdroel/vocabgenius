@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:posthog_flutter/posthog_flutter.dart';
+import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import '../onboarding/widgets.dart';
 import 'billing_service.dart';
@@ -19,8 +21,18 @@ class PaywallScreen extends StatefulWidget {
 class _PaywallScreenState extends State<PaywallScreen> {
   bool _busy = false;
   bool _wasPro = false;
-  bool _reminderBeforeTrialEnds = true;
+  bool _reminderBeforeTrialEnds = false;
+  bool _hardPaywall = false;
   BillingService? _billing;
+
+  @override
+  void initState() {
+    super.initState();
+    Posthog().isFeatureEnabled('hard-paywall').then((enabled) {
+      if (!mounted) return;
+      setState(() => _hardPaywall = enabled);
+    }).catchError((_) {});
+  }
 
   @override
   void didChangeDependencies() {
@@ -61,6 +73,30 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
+  Future<void> _onReminderToggle(bool desired) async {
+    if (desired) {
+      final granted = await NotificationsService.instance
+          .requestIosPermission();
+      if (!mounted) return;
+      if (!granted) {
+        setState(() => _reminderBeforeTrialEnds = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Enable notifications in Settings to get the reminder.'),
+          ),
+        );
+        return;
+      }
+      await NotificationsService.instance.scheduleTrialReminder();
+      if (!mounted) return;
+      setState(() => _reminderBeforeTrialEnds = true);
+    } else {
+      await NotificationsService.instance.cancelTrialReminder();
+      if (!mounted) return;
+      setState(() => _reminderBeforeTrialEnds = false);
+    }
+  }
+
   Future<void> _restore() async {
     final billing = _billing;
     if (billing == null) return;
@@ -75,7 +111,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    final priceLabel = billing?.annualProduct?.price ?? '\$24.99/year';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -84,9 +119,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _CloseButton(onTap: widget.onDismiss),
+              SizedBox(
+                height: 36,
+                child: _hardPaywall
+                    ? const SizedBox.shrink()
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: _CloseButton(onTap: widget.onDismiss),
+                      ),
               ),
               const SizedBox(height: 4),
               Center(
@@ -123,8 +163,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
               const SizedBox(height: 16),
               _ReminderToggle(
                 value: _reminderBeforeTrialEnds,
-                onChanged: (v) =>
-                    setState(() => _reminderBeforeTrialEnds = v),
+                onChanged: _onReminderToggle,
               ),
               const Spacer(),
               if (billing?.lastError != null && !(billing?.isPro ?? false))
@@ -144,10 +183,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 onPressed: _busy ? null : _buy,
               ),
               const SizedBox(height: 10),
-              Text(
-                'Then $priceLabel',
+              const Text(
+                'Then \$59.99/yr (\$5 a month)',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               const SizedBox(height: 6),
               GestureDetector(
@@ -174,7 +213,7 @@ class _Timeline extends StatelessWidget {
       ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
       ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
       ('May 07 - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
-      ('May 08 - Become member', 'Trial ends and full plan begins', Icons.workspace_premium_rounded),
+      ('May 08 - Become member', 'Trial ends and full plan begins for \$59.99 (\$5 a month)', Icons.workspace_premium_rounded),
     ];
     return Container(
       padding: const EdgeInsets.all(20),

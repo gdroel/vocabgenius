@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:posthog_flutter/posthog_flutter.dart';
 import 'billing/billing_service.dart';
 import 'home/home_screen.dart';
+import 'notifications/notifications_service.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
 import 'topics/topics_repository.dart';
@@ -9,7 +11,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repo = TopicsRepository();
   final billing = BillingService();
-  await Future.wait([repo.load(), billing.init()]);
+  await Future.wait([
+    repo.load(),
+    billing.init(),
+    NotificationsService.instance.init(),
+    Posthog().reloadFeatureFlags().catchError((_) {}),
+  ]);
   runApp(ProfessorPipApp(topicsRepo: repo, billing: billing));
 }
 

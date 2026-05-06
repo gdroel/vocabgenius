@@ -1228,7 +1228,7 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
   }
 }
 
-// 22. Become more articulate
+// 22. Become more articulate — Pip pitch
 class Step22OneMinuteADay extends StatelessWidget {
   final StepCallbacks cb;
   const Step22OneMinuteADay({super.key, required this.cb});
@@ -1241,13 +1241,35 @@ class Step22OneMinuteADay extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
           children: [
-            const Spacer(flex: 3),
-            Text(
-              'Become more articulate\nin just 1 minute a day,\nwithout even opening the\napp',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium,
+            const Spacer(flex: 1),
+            const _PipIntroBubble(
+              lines: [
+                "You'll become more articulate in just 1 minute a day, without even opening the app.",
+              ],
             ),
-            const Spacer(flex: 3),
+            const SizedBox(height: 22),
+            Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Brutal.borderColor,
+                  width: Brutal.borderWidth,
+                ),
+                boxShadow: Brutal.shadow(dx: 4, dy: 6),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Transform.scale(
+                scale: 1.25,
+                child: Image.asset(
+                  'assets/hero-image.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const Spacer(flex: 2),
             PrimaryButton(label: 'Continue', onPressed: cb.next),
           ],
         ),
@@ -1256,7 +1278,7 @@ class Step22OneMinuteADay extends StatelessWidget {
   }
 }
 
-// 23. Three days free
+// 23. Three days free — Pip pitch
 class Step23ThreeDaysFree extends StatelessWidget {
   final StepCallbacks cb;
   const Step23ThreeDaysFree({super.key, required this.cb});
@@ -1269,16 +1291,35 @@ class Step23ThreeDaysFree extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
           children: [
-            const Spacer(flex: 3),
-            Text(
-              'We offer\n3 days for free\nso everyone can feel\nmore confident writing\nand speaking',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontSize: 42,
-                height: 1.2,
+            const Spacer(flex: 1),
+            const _PipIntroBubble(
+              lines: [
+                'We offer 3 days for free so you can see the results of daily vocabulary learning.',
+              ],
+            ),
+            const SizedBox(height: 22),
+            Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Brutal.borderColor,
+                  width: Brutal.borderWidth,
+                ),
+                boxShadow: Brutal.shadow(dx: 4, dy: 6),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Transform.scale(
+                scale: 1.25,
+                child: Image.asset(
+                  'assets/hero-image.png',
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-            const Spacer(flex: 3),
+            const Spacer(flex: 2),
             PrimaryButton(label: 'Try it for free', onPressed: cb.next),
           ],
         ),
