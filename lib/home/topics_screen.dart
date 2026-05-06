@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../billing/billing_service.dart';
+import '../billing/paywall_screen.dart';
 import '../onboarding/theme.dart';
 import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
@@ -11,12 +13,50 @@ class TopicsScreen extends StatefulWidget {
 }
 
 class _TopicsScreenState extends State<TopicsScreen> {
+  void _presentPaywall() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => PaywallScreen(
+          onDismiss: () => Navigator.of(context).pop(),
+          onPurchased: () => Navigator.of(context).pop(),
+        ),
+      ),
+    );
+  }
+
+  void _onToggle(TopicsRepository repo, BillingService billing, Topic t) {
+    if (TopicsCatalog.isFree(t.id) || billing.isPro) {
+      repo.toggle(t.id);
+    } else {
+      _presentPaywall();
+    }
+  }
+
+  void _onSelectAll(TopicsRepository repo, BillingService billing, List<Topic> topics) {
+    final allowed = billing.isPro
+        ? topics.map((t) => t.id)
+        : topics.where((t) => TopicsCatalog.isFree(t.id)).map((t) => t.id);
+    final allFollowed = repo.followed.length == allowed.length &&
+        allowed.every(repo.isFollowing);
+    if (allFollowed) {
+      repo.setAll(const []);
+    } else {
+      repo.setAll(allowed);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final repo = TopicsScope.of(context);
+    final billing = BillingScope.of(context);
     final topics = TopicsCatalog.all;
     final followingCount = topics.where((t) => repo.isFollowing(t.id)).length;
-    final allFollowed = followingCount == topics.length;
+    final selectableIds = billing.isPro
+        ? topics.map((t) => t.id).toSet()
+        : topics.where((t) => TopicsCatalog.isFree(t.id)).map((t) => t.id).toSet();
+    final allFollowed = followingCount == selectableIds.length &&
+        selectableIds.every(repo.isFollowing);
 
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -37,13 +77,7 @@ class _TopicsScreenState extends State<TopicsScreen> {
                   ),
                   _SelectAllButton(
                     allFollowed: allFollowed,
-                    onTap: () {
-                      if (allFollowed) {
-                        repo.setAll(const []);
-                      } else {
-                        repo.setAll(topics.map((t) => t.id));
-                      }
-                    },
+                    onTap: () => _onSelectAll(repo, billing, topics),
                   ),
                 ],
               ),
@@ -57,10 +91,12 @@ class _TopicsScreenState extends State<TopicsScreen> {
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (_, i) {
                     final topic = topics[i];
+                    final locked = !billing.isPro && !TopicsCatalog.isFree(topic.id);
                     return _TopicRow(
                       topic: topic,
                       following: repo.isFollowing(topic.id),
-                      onToggle: () => repo.toggle(topic.id),
+                      locked: locked,
+                      onToggle: () => _onToggle(repo, billing, topic),
                     );
                   },
                 ),
@@ -173,91 +209,155 @@ class _SelectAllButton extends StatelessWidget {
 class _TopicRow extends StatelessWidget {
   final Topic topic;
   final bool following;
+  final bool locked;
   final VoidCallback onToggle;
   const _TopicRow({
     required this.topic,
     required this.following,
+    required this.locked,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: Brutal.borderColor,
-            width: Brutal.borderWidth,
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Brutal.borderColor,
+          width: Brutal.borderWidth,
+        ),
+        boxShadow: Brutal.shadow(dx: 3, dy: 4),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppColors.creamSoft,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Brutal.borderColor,
+                width: Brutal.borderWidth,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(topic.icon, size: 28, color: AppColors.burgundy),
           ),
-          boxShadow: Brutal.shadow(dx: 3, dy: 4),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.creamSoft,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Brutal.borderColor,
-                  width: Brutal.borderWidth,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        topic.title,
+                        style: const TextStyle(
+                          color: AppColors.ink,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (TopicsCatalog.isFree(topic.id)) ...[
+                      const SizedBox(width: 8),
+                      const _FreeBadge(),
+                    ],
+                  ],
                 ),
-              ),
-              alignment: Alignment.center,
-              child: Icon(topic.icon, size: 28, color: AppColors.burgundy),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    topic.title,
-                    style: const TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  topic.blurb,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    topic.blurb,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            _FollowChip(following: following, onTap: onToggle),
-          ],
+          ),
+          const SizedBox(width: 10),
+          _FollowChip(following: following, locked: locked, onTap: onToggle),
+        ],
+      ),
+    );
+  }
+}
+
+class _FreeBadge extends StatelessWidget {
+  const _FreeBadge();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.creamSoft,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(
+          color: Brutal.borderColor,
+          width: 1.4,
         ),
+      ),
+      child: const Text(
+        'FREE',
+        style: TextStyle(
+          color: AppColors.ink,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
+      ),
     );
   }
 }
 
 class _FollowChip extends StatelessWidget {
   final bool following;
+  final bool locked;
   final VoidCallback onTap;
-  const _FollowChip({required this.following, required this.onTap});
+  const _FollowChip({
+    required this.following,
+    required this.locked,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final IconData icon;
+    final String label;
+    final Color bg;
+    final Color fg;
+    if (locked) {
+      icon = Icons.lock_rounded;
+      label = 'Unlock';
+      bg = AppColors.creamSoft;
+      fg = AppColors.ink;
+    } else if (following) {
+      icon = Icons.check_rounded;
+      label = 'Following';
+      bg = AppColors.burgundy;
+      fg = Colors.white;
+    } else {
+      icon = Icons.add_rounded;
+      label = 'Follow';
+      bg = Colors.white;
+      fg = AppColors.ink;
+    }
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: following ? AppColors.burgundy : Colors.white,
+          color: bg,
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
             color: Brutal.borderColor,
@@ -269,16 +369,12 @@ class _FollowChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              following ? Icons.check_rounded : Icons.add_rounded,
-              size: 16,
-              color: following ? Colors.white : AppColors.ink,
-            ),
+            Icon(icon, size: 16, color: fg),
             const SizedBox(width: 4),
             Text(
-              following ? 'Following' : 'Follow',
+              label,
               style: TextStyle(
-                color: following ? Colors.white : AppColors.ink,
+                color: fg,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),

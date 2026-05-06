@@ -115,4 +115,8 @@ class TopicsCatalog {
 
   static Topic byId(String id) =>
       all.firstWhere((t) => t.id == id, orElse: () => all.first);
+
+  static const freeTopicIds = <String>{'beautiful', 'funny'};
+
+  static bool isFree(String id) => freeTopicIds.contains(id);
 }

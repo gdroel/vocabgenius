@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import '../billing/account_screen.dart';
 import '../onboarding/theme.dart';
 import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
@@ -93,7 +94,9 @@ class _HomeScreenState extends State<HomeScreen> {
               _BottomBar(
                 enabled: word != null,
                 bookmarked: isBookmarked,
-                onShare: () {},
+                onAccount: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AccountScreen()),
+                ),
                 onNext: () => _pickNext(repo),
                 onBookmark: word == null
                     ? () {}
@@ -575,13 +578,13 @@ class _TopicTag extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   final bool enabled;
   final bool bookmarked;
-  final VoidCallback onShare;
+  final VoidCallback onAccount;
   final VoidCallback onNext;
   final VoidCallback onBookmark;
   const _BottomBar({
     required this.enabled,
     required this.bookmarked,
-    required this.onShare,
+    required this.onAccount,
     required this.onNext,
     required this.onBookmark,
   });
@@ -592,9 +595,8 @@ class _BottomBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _ActionCircle(
-          icon: Icons.ios_share_rounded,
-          onTap: enabled ? onShare : () {},
-          dim: !enabled,
+          icon: Icons.person_rounded,
+          onTap: onAccount,
         ),
         Expanded(
           child: Center(

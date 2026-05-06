@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'billing/billing_service.dart';
+import 'home/home_screen.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
 import 'topics/topics_repository.dart';
@@ -6,23 +8,32 @@ import 'topics/topics_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repo = TopicsRepository();
-  await repo.load();
-  runApp(ProfessorPipApp(topicsRepo: repo));
+  final billing = BillingService();
+  await Future.wait([repo.load(), billing.init()]);
+  runApp(ProfessorPipApp(topicsRepo: repo, billing: billing));
 }
 
 class ProfessorPipApp extends StatelessWidget {
   final TopicsRepository topicsRepo;
-  const ProfessorPipApp({super.key, required this.topicsRepo});
+  final BillingService billing;
+  const ProfessorPipApp({
+    super.key,
+    required this.topicsRepo,
+    required this.billing,
+  });
 
   @override
   Widget build(BuildContext context) {
     return TopicsScope(
       repo: topicsRepo,
-      child: MaterialApp(
-        title: 'Professor Pip',
-        debugShowCheckedModeBanner: false,
-        theme: buildOnboardingTheme(),
-        home: const OnboardingFlow(),
+      child: BillingScope(
+        service: billing,
+        child: MaterialApp(
+          title: 'Professor Pip',
+          debugShowCheckedModeBanner: false,
+          theme: buildOnboardingTheme(),
+          home: billing.isPro ? const HomeScreen() : const OnboardingFlow(),
+        ),
       ),
     );
   }

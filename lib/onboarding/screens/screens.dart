@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Chip;
+import '../../billing/paywall_screen.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
 import '../flow.dart';
@@ -1286,186 +1287,17 @@ class Step23ThreeDaysFree extends StatelessWidget {
   }
 }
 
-// 24. Trial timeline
-class Step24Trial extends StatefulWidget {
+// 24. Paywall (annual subscription)
+class Step24Trial extends StatelessWidget {
   final StepCallbacks cb;
   const Step24Trial({super.key, required this.cb});
-  @override
-  State<Step24Trial> createState() => _Step24TrialState();
-}
 
-class _Step24TrialState extends State<Step24Trial> {
   @override
   Widget build(BuildContext context) {
-    final data = OnboardingScope.of(context);
-    return OnboardingScaffold(
-      progress: widget.cb.progress,
-      onBack: widget.cb.back,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Enjoy your free trial',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 24),
-            const _Timeline(),
-            const SizedBox(height: 16),
-            _ReminderToggle(
-              value: data.reminderBeforeTrialEnds,
-              onChanged: (v) => data.update(
-                () => data.reminderBeforeTrialEnds = v,
-              ),
-            ),
-            const Spacer(),
-            PrimaryButton(
-              label: 'Try for \$0.00',
-              onPressed: widget.cb.next,
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '\$4.99/month, \$24.99/year or \$59.99/year',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Privacy   Terms & Conditions   Restore',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
+    return PaywallScreen(
+      onDismiss: cb.next,
+      onPurchased: cb.next,
     );
   }
 }
 
-class _Timeline extends StatelessWidget {
-  const _Timeline();
-  @override
-  Widget build(BuildContext context) {
-    final items = const [
-      ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
-      ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
-      ('May 07 - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
-      ('May 08 - Become member', 'Trial ends and full plan begins', Icons.workspace_premium_rounded),
-    ];
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: Brutal.borderColor,
-          width: Brutal.borderWidth,
-        ),
-        boxShadow: Brutal.shadow(dx: 4, dy: 6),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < items.length; i++) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: i < 2 ? AppColors.success : AppColors.creamSoft,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        items[i].$3,
-                        size: 14,
-                        color: i < 2 ? Colors.white : AppColors.muted,
-                      ),
-                    ),
-                    if (i < items.length - 1)
-                      Container(
-                        width: 2,
-                        height: 36,
-                        color: i < 1
-                            ? AppColors.success
-                            : AppColors.creamSoft,
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          items[i].$1,
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          items[i].$2,
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ReminderToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  const _ReminderToggle({required this.value, required this.onChanged});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: Brutal.borderColor,
-          width: Brutal.borderWidth,
-        ),
-        boxShadow: Brutal.shadow(dx: 3, dy: 4),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Reminder before trial ends',
-              style: TextStyle(color: AppColors.ink, fontSize: 14),
-            ),
-          ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: AppColors.teal,
-          ),
-        ],
-      ),
-    );
-  }
-}
