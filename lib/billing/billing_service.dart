@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:facebook_app_events/facebook_app_events.dart';
 import 'package:flutter/widgets.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,7 @@ const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
 class BillingService extends ChangeNotifier {
   final InAppPurchase _iap = InAppPurchase.instance;
+  final FacebookAppEvents _fb = FacebookAppEvents();
   StreamSubscription<List<PurchaseDetails>>? _sub;
 
   bool _isPro = false;
@@ -77,7 +79,11 @@ class BillingService extends ChangeNotifier {
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
           if (p.productID == annualProductId) {
+            final wasPro = _isPro;
             await _setPro(true);
+            if (!wasPro && p.status == PurchaseStatus.purchased) {
+              await _logStartTrial(p);
+            }
           }
           if (p.pendingCompletePurchase) {
             await _iap.completePurchase(p);
@@ -90,6 +96,20 @@ class BillingService extends ChangeNotifier {
         case PurchaseStatus.canceled:
           break;
       }
+    }
+  }
+
+  Future<void> _logStartTrial(PurchaseDetails p) async {
+    final product = _annualProduct;
+    final currency = product?.currencyCode ?? 'USD';
+    try {
+      await _fb.logStartTrial(
+        orderId: p.purchaseID ?? p.productID,
+        currency: currency,
+        price: product?.rawPrice ?? 0,
+      );
+    } catch (_) {
+      // Non-fatal: analytics failure shouldn't block the purchase flow.
     }
   }
 

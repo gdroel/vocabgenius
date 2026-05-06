@@ -8,6 +8,28 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Professor Pip</string>
+	<key>FacebookAppID</key>
+	<string>1668682687507794</string>
+	<key>FacebookClientToken</key>
+	<string>d8d6827f20847ca4b6d7ae0b0372965d</string>
+	<key>FacebookDisplayName</key>
+	<string>Professor Pip</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fb1668682687507794</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fbapi</string>
+		<string>fb-messenger-share-api</string>
+		<string>fbauth2</string>
+		<string>fbshareextension</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
