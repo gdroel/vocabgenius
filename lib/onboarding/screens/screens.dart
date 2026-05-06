@@ -196,37 +196,129 @@ class Step01Welcome extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           child: Column(
             children: [
-              Expanded(
-                flex: 5,
-                child: Align(
-                  alignment: Alignment.bottomCenter,
+              const Spacer(flex: 1),
+              const _PipIntroBubble(
+                lines: [
+                  "Hey! I'm Professor Pip.",
+                  "Stick me on your lock screen and you'll learn new vocabulary every time you glance at your phone.",
+                ],
+              ),
+              const SizedBox(height: 22),
+              Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Brutal.borderColor,
+                    width: Brutal.borderWidth,
+                  ),
+                  boxShadow: Brutal.shadow(dx: 4, dy: 6),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Transform.scale(
+                  scale: 1.25,
                   child: Image.asset(
                     'assets/hero-image.png',
-                    fit: BoxFit.contain,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Expand your Vocabulary\nin 1 minute a day',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Learn 10,000+ new words with a new daily habit\nthat takes just 1 minute.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.inkSoft,
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
               const Spacer(flex: 2),
-              PrimaryButton(label: 'Get started', onPressed: cb.next),
+              PrimaryButton(label: 'Nice to meet you, Pip', onPressed: cb.next),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PipIntroBubble extends StatefulWidget {
+  final List<String> lines;
+  const _PipIntroBubble({required this.lines});
+
+  @override
+  State<_PipIntroBubble> createState() => _PipIntroBubbleState();
+}
+
+class _PipIntroBubbleState extends State<_PipIntroBubble>
+    with SingleTickerProviderStateMixin {
+  late final String _full = widget.lines.join('\n\n');
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: (_full.length * 22).clamp(900, 3200)),
+  );
+  late final Animation<int> _chars = StepTween(begin: 0, end: _full.length)
+      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) _ctl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Brutal.borderColor,
+          width: Brutal.borderWidth,
+        ),
+        boxShadow: Brutal.shadow(dx: 4, dy: 5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Professor Pip',
+            style: TextStyle(
+              color: AppColors.burgundy,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          AnimatedBuilder(
+            animation: _chars,
+            builder: (_, _) {
+              final shown = _full.substring(0, _chars.value);
+              final isTyping = _chars.value < _full.length;
+              return RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    height: 1.4,
+                  ),
+                  children: [
+                    TextSpan(text: shown),
+                    if (isTyping)
+                      const TextSpan(
+                        text: '▍',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

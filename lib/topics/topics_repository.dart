@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TopicsRepository extends ChangeNotifier {
   static const _key = 'followed_topics_v1';
+  static const _widgetChannel = MethodChannel('professor_pip/widget');
   final Set<String> _followed = {};
   bool _loaded = false;
 
@@ -19,6 +21,7 @@ class TopicsRepository extends ChangeNotifier {
       ..addAll(list);
     _loaded = true;
     notifyListeners();
+    unawaited(_syncWidget());
   }
 
   Future<void> toggle(String id) async {
@@ -42,8 +45,22 @@ class TopicsRepository extends ChangeNotifier {
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_key, _followed.toList());
+    unawaited(_syncWidget());
+  }
+
+  Future<void> _syncWidget() async {
+    try {
+      await _widgetChannel.invokeMethod(
+        'setFollowedTopics',
+        _followed.toList(),
+      );
+    } catch (_) {
+      // Channel only exists on iOS; ignore elsewhere.
+    }
   }
 }
+
+void unawaited(Future<void> _) {}
 
 class TopicsScope extends InheritedNotifier<TopicsRepository> {
   const TopicsScope({
