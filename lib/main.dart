@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
+import 'topics/topics_repository.dart';
 
-void main() {
-  runApp(const VocabGeniusApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final repo = TopicsRepository();
+  await repo.load();
+  runApp(VocabGeniusApp(topicsRepo: repo));
 }
 
 class VocabGeniusApp extends StatelessWidget {
-  const VocabGeniusApp({super.key});
+  final TopicsRepository topicsRepo;
+  const VocabGeniusApp({super.key, required this.topicsRepo});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Vocabulary',
-      debugShowCheckedModeBanner: false,
-      theme: buildOnboardingTheme(),
-      home: const OnboardingFlow(),
+    return TopicsScope(
+      repo: topicsRepo,
+      child: MaterialApp(
+        title: 'Vocabulary',
+        debugShowCheckedModeBanner: false,
+        theme: buildOnboardingTheme(),
+        home: const OnboardingFlow(),
+      ),
     );
   }
 }

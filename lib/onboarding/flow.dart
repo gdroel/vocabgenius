@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../home/home_screen.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'screens/screens.dart';
@@ -64,7 +65,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   void _finish() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const _Done()),
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
 
@@ -112,19 +113,3 @@ class StepCallbacks {
   });
 }
 
-class _Done extends StatelessWidget {
-  const _Done();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.cream,
-      body: Center(
-        child: Text(
-          'Welcome to Vocabulary',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
-    );
-  }
-}

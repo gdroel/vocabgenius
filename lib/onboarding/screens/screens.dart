@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart' hide Chip;
+import '../../topics/topics_catalog.dart';
+import '../../topics/topics_repository.dart';
 import '../flow.dart';
 import '../state.dart';
 import '../theme.dart';
@@ -120,7 +122,6 @@ class _MultiChoiceScreen extends StatefulWidget {
   final List<String> options;
   final Set<String> Function(OnboardingData) read;
   final bool showSkip;
-  final bool tileStyle;
   const _MultiChoiceScreen({
     required this.cb,
     required this.title,
@@ -128,7 +129,6 @@ class _MultiChoiceScreen extends StatefulWidget {
     required this.options,
     required this.read,
     this.showSkip = true,
-    this.tileStyle = true,
   });
 
   @override
@@ -154,40 +154,20 @@ class _MultiChoiceScreenState extends State<_MultiChoiceScreen> {
             TitleHeader(title: widget.title, subtitle: widget.subtitle),
             const SizedBox(height: 24),
             Expanded(
-              child: widget.tileStyle
-                  ? ListView.separated(
-                      itemCount: widget.options.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) {
-                        final opt = widget.options[i];
-                        return OptionTile(
-                          label: opt,
-                          selected: set.contains(opt),
-                          onTap: () => data.update(() {
-                            set.contains(opt) ? set.remove(opt) : set.add(opt);
-                          }),
-                        );
-                      },
-                    )
-                  : SingleChildScrollView(
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 10,
-                        children: widget.options
-                            .map(
-                              (o) => Chip(
-                                label: o,
-                                selected: set.contains(o),
-                                onTap: () => data.update(() {
-                                  set.contains(o)
-                                      ? set.remove(o)
-                                      : set.add(o);
-                                }),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
+              child: ListView.separated(
+                itemCount: widget.options.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (_, i) {
+                  final opt = widget.options[i];
+                  return OptionTile(
+                    label: opt,
+                    selected: set.contains(opt),
+                    onTap: () => data.update(() {
+                      set.contains(opt) ? set.remove(opt) : set.add(opt);
+                    }),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 12),
             PrimaryButton(
@@ -252,39 +232,6 @@ class Step01Welcome extends StatelessWidget {
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow();
-  @override
-  Widget build(BuildContext context) {
-    Widget stat(String value, String label) => Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: AppColors.muted),
-        ),
-      ],
-    );
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        stat('250 million', 'words learned'),
-        Container(width: 1, height: 28, color: AppColors.muted.withValues(alpha: 0.3)),
-        stat('4.8 ★', 'app store'),
-        Container(width: 1, height: 28, color: AppColors.muted.withValues(alpha: 0.3)),
-        stat('14 million', 'learners'),
-      ],
-    );
-  }
-}
 
 // 2. Tailor word recommendations
 class Step02TailorIntro extends StatelessWidget {
@@ -886,35 +833,66 @@ class Step10Topics extends StatelessWidget {
   );
 }
 
-// 11. Categories (chips)
-class Step11Categories extends StatelessWidget {
+// 11. Categories (chips) — backed by TopicsRepository
+class Step11Categories extends StatefulWidget {
   final StepCallbacks cb;
   const Step11Categories({super.key, required this.cb});
   @override
-  Widget build(BuildContext context) => _MultiChoiceScreen(
-    cb: cb,
-    title: 'Which categories are you\ninterested in?',
-    options: const [
-      'Emotions',
-      'History',
-      'Art',
-      'Curse words',
-      'Business',
-      'Communication',
-      'Improving other people',
-      'Cuisine',
-      'Body',
-      'Society',
-      'Sexology',
-      'People',
-      'Funny words',
-      'Expressions',
-      'Literature',
-      'Music',
-    ],
-    read: (d) => d.categories,
-    tileStyle: false,
-  );
+  State<Step11Categories> createState() => _Step11CategoriesState();
+}
+
+class _Step11CategoriesState extends State<Step11Categories> {
+  @override
+  Widget build(BuildContext context) {
+    final repo = TopicsScope.of(context);
+    final selected = repo.followed;
+    return OnboardingScaffold(
+      progress: widget.cb.progress,
+      onBack: widget.cb.back,
+      onSkip: widget.cb.skip,
+      showSkip: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            const TitleHeader(
+              title: 'Which topics are you\ninterested in?',
+              subtitle: 'You can change these any time',
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 12,
+                  children: TopicsCatalog.all
+                      .map(
+                        (t) => Chip(
+                          label: t.title,
+                          selected: selected.contains(t.id),
+                          onTap: () async {
+                            await repo.toggle(t.id);
+                            if (mounted) setState(() {});
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            PrimaryButton(
+              label: 'Continue',
+              onPressed: selected.isEmpty ? null : widget.cb.next,
+              enabled: selected.isNotEmpty,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // 12. Curiosity
@@ -1016,12 +994,12 @@ class Step17BeginnerWords extends StatelessWidget {
     title: 'Beginner words',
     subtitle: 'Select all the ones you know',
     options: const [
-      'Jumble',
-      'Borrow',
-      'Genuine',
-      'Metal',
-      'Squint',
-      'Whisper',
+      'Eager',
+      'Vivid',
+      'Brisk',
+      'Hollow',
+      'Mellow',
+      'Dwindle',
     ],
     read: (d) => d.beginnerKnown,
     showSkip: false,
@@ -1038,12 +1016,12 @@ class Step18IntermediateWords extends StatelessWidget {
     title: 'Intermediate words',
     subtitle: 'Select all the ones you know',
     options: const [
-      'Morose',
-      'Whet',
-      'Deportment',
-      'Impeccable',
-      'Pervasive',
-      'Squander',
+      'Ephemeral',
+      'Candid',
+      'Astute',
+      'Beguile',
+      'Tacit',
+      'Wistful',
     ],
     read: (d) => d.intermediateKnown,
     showSkip: false,
@@ -1060,12 +1038,12 @@ class Step19AdvancedWords extends StatelessWidget {
     title: 'Advanced words',
     subtitle: 'Select all the ones you know',
     options: const [
-      'Logophile',
-      'Superincumbent',
-      'Quixotic',
-      'Lucubration',
-      'Callipygian',
-      'Numinous',
+      'Petrichor',
+      'Sonder',
+      'Sesquipedalian',
+      'Susurrus',
+      'Apricity',
+      'Defenestrate',
     ],
     read: (d) => d.advancedKnown,
     showSkip: false,
