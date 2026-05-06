@@ -78,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     word: word.word,
                     partOfSpeech: word.partOfSpeech,
                     definition: word.definition,
+                    example: word.example,
                     topic: TopicsCatalog.byId(word.topicId),
                   ),
                 )
@@ -297,12 +298,14 @@ class _WordCard extends StatelessWidget {
   final String word;
   final String partOfSpeech;
   final String definition;
+  final String example;
   final Topic topic;
   const _WordCard({
     super.key,
     required this.word,
     required this.partOfSpeech,
     required this.definition,
+    required this.example,
     required this.topic,
   });
 
@@ -341,9 +344,196 @@ class _WordCard extends StatelessWidget {
             height: 1.35,
           ),
         ),
+        const SizedBox(height: 22),
+        _PipSpeechBubble(text: example),
       ],
     );
   }
+}
+
+class _PipSpeechBubble extends StatefulWidget {
+  final String text;
+  const _PipSpeechBubble({required this.text});
+
+  @override
+  State<_PipSpeechBubble> createState() => _PipSpeechBubbleState();
+}
+
+class _PipSpeechBubbleState extends State<_PipSpeechBubble>
+    with TickerProviderStateMixin {
+  late final AnimationController _ctl;
+  late Animation<int> _chars;
+  late final AnimationController _bobCtl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = AnimationController(
+      vsync: this,
+      duration: Duration(
+        milliseconds: (widget.text.length * 22).clamp(700, 2400),
+      ),
+    );
+    _chars = StepTween(begin: 0, end: widget.text.length).animate(
+      CurvedAnimation(parent: _ctl, curve: Curves.easeOut),
+    );
+    Future.delayed(const Duration(milliseconds: 280), () {
+      if (mounted) _ctl.forward();
+    });
+    _bobCtl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _ctl.addStatusListener((status) {
+      if (!mounted) return;
+      if (status == AnimationStatus.forward) {
+        _bobCtl.repeat(reverse: true);
+      } else {
+        _bobCtl.stop();
+        _bobCtl.value = 0;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    _bobCtl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _bobCtl,
+            builder: (_, child) => Transform.translate(
+              offset: Offset(0, -2.5 * _bobCtl.value),
+              child: child,
+            ),
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Brutal.borderColor,
+                  width: Brutal.borderWidth,
+                ),
+                boxShadow: Brutal.shadow(dx: 2, dy: 3),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Transform.scale(
+                scale: 1.35,
+                child: Image.asset(
+                  'assets/hero-image.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          CustomPaint(
+            painter: _BubbleTailPainter(),
+            size: const Size(12, 22),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Brutal.borderColor,
+                  width: Brutal.borderWidth,
+                ),
+                boxShadow: Brutal.shadow(dx: 3, dy: 4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Professor Pip',
+                    style: TextStyle(
+                      color: AppColors.burgundy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedBuilder(
+                    animation: _chars,
+                    builder: (_, _) {
+                      final shown = widget.text.substring(0, _chars.value);
+                      final isTyping = _chars.value < widget.text.length;
+                      return RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                            height: 1.35,
+                          ),
+                          children: [
+                            TextSpan(text: shown),
+                            if (isTyping)
+                              const TextSpan(
+                                text: '▍',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontStyle: FontStyle.normal,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BubbleTailPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fill = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final stroke = Paint()
+      ..color = Brutal.borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = Brutal.borderWidth
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(size.width, 0)
+      ..lineTo(0, size.height / 2)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, fill);
+    canvas.drawPath(path, stroke);
+    // Cover the right edge so the bubble border merges seamlessly.
+    final cover = Paint()..color = Colors.white;
+    canvas.drawRect(
+      Rect.fromLTWH(size.width - 1, 1, 2, size.height - 2),
+      cover,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _TopicTag extends StatelessWidget {
