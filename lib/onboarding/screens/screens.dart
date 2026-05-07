@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide Chip;
+import 'package:flutter/services.dart';
 import '../../billing/paywall_screen.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
@@ -254,9 +255,18 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
   late final Animation<int> _chars = StepTween(begin: 0, end: _full.length)
       .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
 
+  int _lastTickedAt = 0;
+
   @override
   void initState() {
     super.initState();
+    _chars.addListener(() {
+      final shown = _chars.value;
+      if (shown > _lastTickedAt && shown - _lastTickedAt >= 3) {
+        _lastTickedAt = shown;
+        HapticFeedback.selectionClick();
+      }
+    });
     Future.delayed(const Duration(milliseconds: 350), () {
       if (mounted) _ctl.forward();
     });

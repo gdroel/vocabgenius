@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../billing/account_screen.dart';
 import '../bookmarks/bookmarks_repository.dart';
 import '../onboarding/theme.dart';
@@ -386,6 +387,14 @@ class _PipSpeechBubbleState extends State<_PipSpeechBubble>
     _chars = StepTween(begin: 0, end: widget.text.length).animate(
       CurvedAnimation(parent: _ctl, curve: Curves.easeOut),
     );
+    int lastTickedAt = 0;
+    _chars.addListener(() {
+      final shown = _chars.value;
+      if (shown > lastTickedAt && shown - lastTickedAt >= 3) {
+        lastTickedAt = shown;
+        HapticFeedback.selectionClick();
+      }
+    });
     Future.delayed(const Duration(milliseconds: 280), () {
       if (mounted) _ctl.forward();
     });
