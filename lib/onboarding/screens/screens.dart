@@ -939,20 +939,23 @@ class _Step11CategoriesState extends State<Step11Categories> {
   Widget build(BuildContext context) {
     final repo = TopicsScope.of(context);
     final selected = repo.followed;
+    const minTopics = 3;
+    final remaining = minTopics - selected.length;
+    final hasEnough = remaining <= 0;
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
-      onSkip: widget.cb.skip,
-      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 12),
-            const TitleHeader(
+            TitleHeader(
               title: 'Which topics are you\ninterested in?',
-              subtitle: 'You can change these any time',
+              subtitle: hasEnough
+                  ? "Nice. You can change these any time."
+                  : 'Pick at least $minTopics to keep going',
             ),
             const SizedBox(height: 24),
             Expanded(
@@ -977,9 +980,11 @@ class _Step11CategoriesState extends State<Step11Categories> {
             ),
             const SizedBox(height: 12),
             PrimaryButton(
-              label: 'Continue',
-              onPressed: selected.isEmpty ? null : widget.cb.next,
-              enabled: selected.isNotEmpty,
+              label: hasEnough
+                  ? 'Continue'
+                  : 'Pick $remaining more',
+              onPressed: hasEnough ? widget.cb.next : null,
+              enabled: hasEnough,
             ),
           ],
         ),

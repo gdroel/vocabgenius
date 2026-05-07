@@ -1,53 +1,16 @@
 import 'package:flutter/material.dart';
+import '../bookmarks/bookmarks_repository.dart';
 import '../onboarding/theme.dart';
 import '../topics/topics_catalog.dart';
+import '../topics/words_data.dart';
 
 class SavedScreen extends StatelessWidget {
   const SavedScreen({super.key});
 
-  static const _saved = <_SavedWord>[
-    _SavedWord(
-      word: 'jouska',
-      phonetic: 'ˈdʒaʊskə',
-      partOfSpeech: 'n.',
-      topicId: 'emotions',
-      definition:
-          'The mental habit of rehearsing or imagining conversations that never actually occur',
-    ),
-    _SavedWord(
-      word: 'sonder',
-      phonetic: 'ˈsɒndər',
-      partOfSpeech: 'n.',
-      topicId: 'emotions',
-      definition:
-          'The realization that each passerby has a life as vivid and complex as your own',
-    ),
-    _SavedWord(
-      word: 'petrichor',
-      phonetic: 'ˈpɛtrɪkɔr',
-      partOfSpeech: 'n.',
-      topicId: 'beautiful',
-      definition:
-          'The pleasant, earthy smell after rain falls on dry ground',
-    ),
-    _SavedWord(
-      word: 'salubrious',
-      phonetic: 'səˈluːbriəs',
-      partOfSpeech: 'adj.',
-      topicId: 'beautiful',
-      definition: 'Health-giving; clean and conducive to wellbeing',
-    ),
-    _SavedWord(
-      word: 'lucubration',
-      phonetic: 'ˌluːkjuˈbreɪʃn',
-      partOfSpeech: 'n.',
-      topicId: 'literature',
-      definition: 'Study or writing done late into the night',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final bookmarks = BookmarksScope.of(context);
+    final saved = bookmarks.saved;
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -55,12 +18,17 @@ class SavedScreen extends StatelessWidget {
           children: [
             _Header(),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                itemCount: _saved.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 14),
-                itemBuilder: (_, i) => _SavedCard(word: _saved[i]),
-              ),
+              child: saved.isEmpty
+                  ? const _EmptyState()
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                      itemCount: saved.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 14),
+                      itemBuilder: (_, i) => _SavedCard(
+                        word: saved[i],
+                        onRemove: () => bookmarks.remove(saved[i]),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -69,19 +37,45 @@ class SavedScreen extends StatelessWidget {
   }
 }
 
-class _SavedWord {
-  final String word;
-  final String phonetic;
-  final String partOfSpeech;
-  final String topicId;
-  final String definition;
-  const _SavedWord({
-    required this.word,
-    required this.phonetic,
-    required this.partOfSpeech,
-    required this.topicId,
-    required this.definition,
-  });
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.bookmark_outline_rounded,
+              size: 56,
+              color: AppColors.ink.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'No saved words yet',
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Tap the bookmark icon on any word to save it.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -137,7 +131,7 @@ class _MiniTopicTag extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.burgundy,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(99),
           border: Border.all(
             color: Brutal.borderColor,
@@ -147,12 +141,12 @@ class _MiniTopicTag extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(topic.icon, size: 13, color: Colors.white),
+            Icon(topic.icon, size: 13, color: AppColors.ink),
             const SizedBox(width: 5),
             Text(
               topic.title,
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.ink,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
@@ -165,8 +159,9 @@ class _MiniTopicTag extends StatelessWidget {
 }
 
 class _SavedCard extends StatelessWidget {
-  final _SavedWord word;
-  const _SavedCard({required this.word});
+  final Word word;
+  final VoidCallback onRemove;
+  const _SavedCard({required this.word, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -186,11 +181,20 @@ class _SavedCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: _MiniTopicTag(topic: TopicsCatalog.byId(word.topicId))),
-              const Icon(
-                Icons.bookmark_rounded,
-                color: AppColors.burgundy,
-                size: 24,
+              Expanded(
+                child: _MiniTopicTag(topic: TopicsCatalog.byId(word.topicId)),
+              ),
+              GestureDetector(
+                onTap: onRemove,
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.bookmark_rounded,
+                    color: AppColors.burgundy,
+                    size: 26,
+                  ),
+                ),
               ),
             ],
           ),
@@ -204,9 +208,9 @@ class _SavedCard extends StatelessWidget {
               height: 1.0,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            '${word.phonetic}  ·  ${word.partOfSpeech}',
+            '(${word.partOfSpeech})',
             style: const TextStyle(
               color: AppColors.muted,
               fontSize: 14,

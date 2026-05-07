@@ -1668,6 +1668,9 @@ class WordsData {
     'music': _music,
   };
 
+  static List<Word> get all =>
+      _byTopic.values.expand((list) => list).toList(growable: false);
+
   static List<Word> forTopic(String id) => _byTopic[id] ?? const [];
 
   static List<Word> forTopics(Iterable<String> ids) {

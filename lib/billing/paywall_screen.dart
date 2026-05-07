@@ -207,13 +207,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
 class _Timeline extends StatelessWidget {
   const _Timeline();
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _fmt(DateTime d) => '${_months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
-    final items = const [
+    final now = DateTime.now();
+    final reminder = now.add(const Duration(days: 2));
+    final billing = now.add(const Duration(days: 3));
+    final items = [
       ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
       ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
-      ('May 07 - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
-      ('May 08 - Become member', 'Trial ends and full plan begins for \$59.99 (\$5 a month)', Icons.workspace_premium_rounded),
+      ('${_fmt(reminder)} - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
+      ('${_fmt(billing)} - Become member', 'Trial ends and full plan begins for \$59.99 (\$5 a month)', Icons.workspace_premium_rounded),
     ];
     return Container(
       padding: const EdgeInsets.all(20),

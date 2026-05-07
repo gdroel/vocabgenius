@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../billing/account_screen.dart';
+import '../bookmarks/bookmarks_repository.dart';
 import '../onboarding/theme.dart';
 import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
@@ -18,7 +19,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _bookmarks = <String>{};
   final _rng = Random();
   Word? _current;
 
@@ -47,10 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = TopicsScope.of(context);
+    final bookmarks = BookmarksScope.of(context);
     _refreshIfNeeded(repo);
     final word = _current;
     final hasFollowed = repo.followed.isNotEmpty;
-    final isBookmarked = word != null && _bookmarks.contains(_wordKey(word));
+    final isBookmarked = word != null && bookmarks.isBookmarked(word);
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -109,12 +110,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onNext: () => _pickNext(repo),
                 onBookmark: word == null
                     ? () {}
-                    : () => setState(() {
-                        final key = _wordKey(word);
-                        _bookmarks.contains(key)
-                            ? _bookmarks.remove(key)
-                            : _bookmarks.add(key);
-                      }),
+                    : () => bookmarks.toggle(word),
               ),
             ],
           ),
