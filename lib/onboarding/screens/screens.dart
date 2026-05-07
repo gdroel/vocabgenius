@@ -437,7 +437,7 @@ class _Step04NameState extends State<Step04Name> {
                 ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 24),
             PrimaryButton(
               label: 'Continue',
               onPressed: data.name.trim().isEmpty ? null : widget.cb.next,

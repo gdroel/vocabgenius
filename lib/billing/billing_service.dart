@@ -14,6 +14,7 @@ class BillingService extends ChangeNotifier {
 
   bool _isPro = false;
   bool _available = false;
+  bool _sawEntitlementThisSession = false;
   ProductDetails? _annualProduct;
   String? _lastError;
 
@@ -47,7 +48,25 @@ class BillingService extends ChangeNotifier {
     } else if (response.notFoundIDs.contains(annualProductId)) {
       _lastError = 'Product $annualProductId not found in App Store Connect';
     }
+
+    // Re-verify the cached entitlement with StoreKit before we yield. If
+    // no active subscription comes back within a few seconds, downgrade
+    // to free so we route to onboarding/paywall instead of the home screen.
+    await _verifyEntitlement();
     notifyListeners();
+  }
+
+  Future<void> _verifyEntitlement() async {
+    _sawEntitlementThisSession = false;
+    try {
+      await _iap.restorePurchases();
+    } catch (_) {
+      // ignore — we'll just rely on whatever the stream delivers
+    }
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!_sawEntitlementThisSession && _isPro) {
+      await _setPro(false);
+    }
   }
 
   @override
@@ -80,6 +99,7 @@ class BillingService extends ChangeNotifier {
         case PurchaseStatus.restored:
           if (p.productID == annualProductId) {
             final wasPro = _isPro;
+            _sawEntitlementThisSession = true;
             await _setPro(true);
             if (!wasPro && p.status == PurchaseStatus.purchased) {
               await _logStartTrial(p);

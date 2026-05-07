@@ -325,11 +325,12 @@ class _WordCard extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           word,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 56,
             fontWeight: FontWeight.w700,
             color: AppColors.ink,
-            height: 1.0,
+            height: 1.05,
           ),
         ),
         const SizedBox(height: 12),

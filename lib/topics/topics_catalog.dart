@@ -88,6 +88,18 @@ class TopicsCatalog {
       icon: Icons.psychology_outlined,
     ),
     Topic(
+      id: 'psychology',
+      title: 'Psychology',
+      blurb: 'How the mind actually works',
+      icon: Icons.spa_rounded,
+    ),
+    Topic(
+      id: 'latin',
+      title: 'Latin phrases',
+      blurb: 'Carpe diem and 199 other classics',
+      icon: Icons.menu_book_rounded,
+    ),
+    Topic(
       id: 'literature',
       title: 'Literature',
       blurb: 'Words from the best writers in history',

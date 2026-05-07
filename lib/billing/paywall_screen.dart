@@ -115,12 +115,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
       backgroundColor: AppColors.cream,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 36,
+                height: 28,
                 child: _hardPaywall
                     ? const SizedBox.shrink()
                     : Align(
@@ -128,11 +128,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         child: _CloseButton(onTap: widget.onDismiss),
                       ),
               ),
-              const SizedBox(height: 4),
               Center(
                 child: Container(
-                  width: 96,
-                  height: 96,
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
@@ -140,7 +139,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       color: Brutal.borderColor,
                       width: Brutal.borderWidth,
                     ),
-                    boxShadow: Brutal.shadow(dx: 3, dy: 4),
+                    boxShadow: Brutal.shadow(dx: 2, dy: 3),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Transform.scale(
@@ -152,23 +151,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 8),
+              const Text(
                 'Enjoy your free trial',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineMedium,
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const _Timeline(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               _ReminderToggle(
                 value: _reminderBeforeTrialEnds,
                 onChanged: _onReminderToggle,
               ),
-              const Spacer(),
+              const Spacer(flex: 1),
               if (billing?.lastError != null && !(billing?.isPro ?? false))
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
                     billing!.lastError!,
                     textAlign: TextAlign.center,
@@ -182,13 +185,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 label: _busy ? 'Working…' : 'Try for \$0.00',
                 onPressed: _busy ? null : _buy,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               const Text(
                 'Then \$59.99/yr (\$5 a month)',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               GestureDetector(
                 onTap: _busy ? null : _restore,
                 child: const Text(
@@ -227,15 +230,15 @@ class _Timeline extends StatelessWidget {
       ('${_fmt(billing)} - Become member', 'Trial ends and full plan begins for \$59.99 (\$5 a month)', Icons.workspace_premium_rounded),
     ];
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: Brutal.borderColor,
           width: Brutal.borderWidth,
         ),
-        boxShadow: Brutal.shadow(dx: 4, dy: 6),
+        boxShadow: Brutal.shadow(dx: 3, dy: 4),
       ),
       child: Column(
         children: [
@@ -246,8 +249,8 @@ class _Timeline extends StatelessWidget {
                 Column(
                   children: [
                     Container(
-                      width: 28,
-                      height: 28,
+                      width: 22,
+                      height: 22,
                       decoration: BoxDecoration(
                         color: i < 2 ? AppColors.success : AppColors.creamSoft,
                         shape: BoxShape.circle,
@@ -255,22 +258,22 @@ class _Timeline extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Icon(
                         items[i].$3,
-                        size: 14,
+                        size: 12,
                         color: i < 2 ? Colors.white : AppColors.muted,
                       ),
                     ),
                     if (i < items.length - 1)
                       Container(
                         width: 2,
-                        height: 36,
+                        height: 22,
                         color: i < 1 ? AppColors.success : AppColors.creamSoft,
                       ),
                   ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 14),
+                    padding: const EdgeInsets.only(top: 2, bottom: 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -278,16 +281,17 @@ class _Timeline extends StatelessWidget {
                           items[i].$1,
                           style: const TextStyle(
                             color: AppColors.ink,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           items[i].$2,
                           style: const TextStyle(
                             color: AppColors.muted,
-                            fontSize: 12,
+                            fontSize: 11,
+                            height: 1.25,
                           ),
                         ),
                       ],
@@ -310,10 +314,10 @@ class _ReminderToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: Brutal.borderColor,
           width: Brutal.borderWidth,
@@ -325,14 +329,21 @@ class _ReminderToggle extends StatelessWidget {
           const Expanded(
             child: Text(
               'Reminder before trial ends',
-              style: TextStyle(color: AppColors.ink, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: Colors.white,
-            activeTrackColor: AppColors.teal,
+          Transform.scale(
+            scale: 0.85,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: AppColors.teal,
+            ),
           ),
         ],
       ),
