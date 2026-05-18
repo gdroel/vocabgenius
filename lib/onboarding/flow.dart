@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../home/home_screen.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'screens/screens.dart';
 
+const _kOnboardingStepKey = 'onboarding_step';
+
 class OnboardingFlow extends StatefulWidget {
-  const OnboardingFlow({super.key});
+  final int initialStep;
+  const OnboardingFlow({super.key, this.initialStep = 0});
 
   @override
   State<OnboardingFlow> createState() => _OnboardingFlowState();
@@ -13,8 +17,8 @@ class OnboardingFlow extends StatefulWidget {
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
   final _data = OnboardingData();
-  final _controller = PageController();
-  int _index = 0;
+  late final PageController _controller;
+  late int _index;
 
   late final List<Widget Function(StepCallbacks)> _builders = [
     (cb) => Step01Welcome(cb: cb),
@@ -63,9 +67,26 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   void _skip() => _next();
 
   void _finish() {
+    SharedPreferences.getInstance()
+        .then((p) => p.remove(_kOnboardingStepKey))
+        .catchError((_) => false);
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final start = widget.initialStep.clamp(0, _builders.length - 1);
+    _index = start;
+    _controller = PageController(initialPage: start);
+  }
+
+  void _persistStep(int i) {
+    SharedPreferences.getInstance()
+        .then((p) => p.setInt(_kOnboardingStepKey, i))
+        .catchError((_) => false);
   }
 
   @override
@@ -78,7 +99,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           controller: _controller,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: _builders.length,
-          onPageChanged: (i) => setState(() => _index = i),
+          onPageChanged: (i) {
+            setState(() => _index = i);
+            _persistStep(i);
+          },
           itemBuilder: (_, i) => _builders[i](
             StepCallbacks(
               next: _next,

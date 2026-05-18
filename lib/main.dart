@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'billing/billing_service.dart';
 import 'bookmarks/bookmarks_repository.dart';
 import 'home/home_screen.dart';
@@ -13,17 +14,22 @@ void main() async {
   final repo = TopicsRepository();
   final billing = BillingService();
   final bookmarks = BookmarksRepository();
-  await Future.wait([
+  final prefs = SharedPreferences.getInstance();
+  final results = await Future.wait([
     repo.load(),
     billing.init(),
     bookmarks.load(),
     NotificationsService.instance.init(),
     Posthog().reloadFeatureFlags().catchError((_) {}),
+    prefs,
   ]);
+  final onboardingStep =
+      (results.last as SharedPreferences).getInt('onboarding_step') ?? 0;
   runApp(ProfessorPipApp(
     topicsRepo: repo,
     billing: billing,
     bookmarks: bookmarks,
+    onboardingStep: onboardingStep,
   ));
 }
 
@@ -31,11 +37,13 @@ class ProfessorPipApp extends StatelessWidget {
   final TopicsRepository topicsRepo;
   final BillingService billing;
   final BookmarksRepository bookmarks;
+  final int onboardingStep;
   const ProfessorPipApp({
     super.key,
     required this.topicsRepo,
     required this.billing,
     required this.bookmarks,
+    required this.onboardingStep,
   });
 
   @override
@@ -50,7 +58,9 @@ class ProfessorPipApp extends StatelessWidget {
             title: 'Professor Pip',
             debugShowCheckedModeBanner: false,
             theme: buildOnboardingTheme(),
-            home: billing.isPro ? const HomeScreen() : const OnboardingFlow(),
+            home: billing.isPro
+                ? const HomeScreen()
+                : OnboardingFlow(initialStep: onboardingStep),
           ),
         ),
       ),

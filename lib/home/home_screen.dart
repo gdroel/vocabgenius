@@ -20,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const _widgetChannel = MethodChannel('professor_pip/widget');
   final _rng = Random();
   Word? _current;
 
@@ -41,6 +42,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final ids = repo.followed;
     final next = WordsData.randomFor(ids, rng: _rng);
     setState(() => _current = next);
+    if (next != null) _pushWordToWidget(next);
+  }
+
+  Future<void> _pushWordToWidget(Word w) async {
+    try {
+      await _widgetChannel.invokeMethod('setLastWord', {
+        'topicId': w.topicId,
+        'word': w.word,
+        'pos': w.partOfSpeech,
+        'definition': w.definition,
+      });
+    } catch (_) {
+      // Channel only exists on iOS; ignore elsewhere.
+    }
   }
 
   String _wordKey(Word w) => '${w.topicId}::${w.word}';

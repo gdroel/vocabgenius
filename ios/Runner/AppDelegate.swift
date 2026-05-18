@@ -7,6 +7,7 @@ import FBSDKCoreKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private static let appGroupId = "group.com.gaberoeloffs.professorpip"
   private static let followedTopicsKey = "followedTopics"
+  private static let lastWordKey = "lastWord"
   private static let channelName = "professor_pip/widget"
 
   override func application(
@@ -49,6 +50,17 @@ import FBSDKCoreKit
           let ids = (call.arguments as? [String]) ?? []
           let defaults = UserDefaults(suiteName: AppDelegate.appGroupId)
           defaults?.set(ids, forKey: AppDelegate.followedTopicsKey)
+          if #available(iOS 14.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+          }
+          result(nil)
+        case "setLastWord":
+          let defaults = UserDefaults(suiteName: AppDelegate.appGroupId)
+          if let dict = call.arguments as? [String: Any] {
+            defaults?.set(dict, forKey: AppDelegate.lastWordKey)
+          } else {
+            defaults?.removeObject(forKey: AppDelegate.lastWordKey)
+          }
           if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadAllTimelines()
           }

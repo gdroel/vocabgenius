@@ -3,6 +3,24 @@ import SwiftUI
 
 private let appGroupId = "group.com.gaberoeloffs.professorpip"
 private let followedTopicsKey = "followedTopics"
+private let lastWordKey = "lastWord"
+
+private struct AppWord {
+    let word: String
+    let pos: String
+    let definition: String
+}
+
+private func lastWordFromApp() -> AppWord? {
+    let defaults = UserDefaults(suiteName: appGroupId)
+    guard let dict = defaults?.dictionary(forKey: lastWordKey),
+          let word = dict["word"] as? String,
+          let pos = dict["pos"] as? String,
+          let definition = dict["definition"] as? String else {
+        return nil
+    }
+    return AppWord(word: word, pos: pos, definition: definition)
+}
 
 struct VocabEntry: TimelineEntry {
     let date: Date
@@ -59,6 +77,15 @@ struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> VocabEntry { emptyStateEntry }
 
     func getSnapshot(in context: Context, completion: @escaping (VocabEntry) -> Void) {
+        if let last = lastWordFromApp() {
+            completion(VocabEntry(
+                date: Date(),
+                word: last.word,
+                partOfSpeech: last.pos,
+                definition: last.definition
+            ))
+            return
+        }
         let pool = wordPool()
         completion(makeVocabEntry(for: Date(), pool: pool))
     }
@@ -72,7 +99,20 @@ struct Provider: TimelineProvider {
         ) ?? now
 
         var entries: [VocabEntry] = []
-        for offset in 0..<24 {
+        // The current hour's entry mirrors whatever word the app last
+        // showed (if any). Subsequent hours rotate deterministically from
+        // the followed-topics pool until the user opens the app again.
+        if let last = lastWordFromApp() {
+            entries.append(VocabEntry(
+                date: topOfHour,
+                word: last.word,
+                partOfSpeech: last.pos,
+                definition: last.definition
+            ))
+        } else {
+            entries.append(makeVocabEntry(for: topOfHour, pool: pool))
+        }
+        for offset in 1..<24 {
             let d = cal.date(byAdding: .hour, value: offset, to: topOfHour) ?? now
             entries.append(makeVocabEntry(for: d, pool: pool))
         }
