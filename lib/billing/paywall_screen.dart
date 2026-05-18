@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
@@ -128,47 +129,44 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         child: _CloseButton(onTap: widget.onDismiss),
                       ),
               ),
-              Center(
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Brutal.borderColor,
-                      width: Brutal.borderWidth,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Brutal.borderColor,
+                        width: Brutal.borderWidth,
+                      ),
+                      boxShadow: Brutal.shadow(dx: 2, dy: 3),
                     ),
-                    boxShadow: Brutal.shadow(dx: 2, dy: 3),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Transform.scale(
-                    scale: 1.3,
-                    child: Image.asset(
-                      'assets/hero-image.png',
-                      fit: BoxFit.cover,
+                    clipBehavior: Clip.antiAlias,
+                    child: Transform.scale(
+                      scale: 1.3,
+                      child: Image.asset(
+                        'assets/hero-image.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: _PipBubble(text: 'Enjoy your free trial!'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enjoy your free trial',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.ink,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               const _Timeline(),
-              const SizedBox(height: 10),
+              const Spacer(flex: 1),
               _ReminderToggle(
                 value: _reminderBeforeTrialEnds,
                 onChanged: _onReminderToggle,
               ),
-              const Spacer(flex: 1),
+              const SizedBox(height: 10),
               if (billing?.lastError != null && !(billing?.isPro ?? false))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -177,7 +175,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppColors.burgundy,
-                      fontSize: 12,
+                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -185,19 +183,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 label: _busy ? 'Working…' : 'Try for \$0.00',
                 onPressed: _busy ? null : _buy,
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Then \$59.99/yr (\$5 a month)',
+              const SizedBox(height: 12),
+              const Text.rich(
+                TextSpan(
+                  style: TextStyle(color: AppColors.ink, fontSize: 14),
+                  children: [
+                    TextSpan(text: '\$4.99 a month, billed yearly as '),
+                    TextSpan(
+                      text: '\$59.99 per year',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 18),
               GestureDetector(
                 onTap: _busy ? null : _restore,
                 child: const Text(
                   'Privacy   Terms & Conditions   Restore',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted, fontSize: 11),
+                  style: TextStyle(color: AppColors.muted, fontSize: 10),
                 ),
               ),
             ],
@@ -227,7 +233,7 @@ class _Timeline extends StatelessWidget {
       ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
       ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
       ('${_fmt(reminder)} - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
-      ('${_fmt(billing)} - Become member', 'Trial ends and full plan begins for \$59.99 (\$5 a month)', Icons.workspace_premium_rounded),
+      ('${_fmt(billing)} - Become member', "You're official!", Icons.workspace_premium_rounded),
     ];
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
@@ -282,15 +288,15 @@ class _Timeline extends StatelessWidget {
                           style: const TextStyle(
                             color: AppColors.ink,
                             fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                            fontSize: 17,
                           ),
                         ),
-                        const SizedBox(height: 1),
+                        const SizedBox(height: 2),
                         Text(
                           items[i].$2,
                           style: const TextStyle(
                             color: AppColors.muted,
-                            fontSize: 11,
+                            fontSize: 15,
                             height: 1.25,
                           ),
                         ),
@@ -331,7 +337,7 @@ class _ReminderToggle extends StatelessWidget {
               'Reminder before trial ends',
               style: TextStyle(
                 color: AppColors.ink,
-                fontSize: 13,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -349,6 +355,167 @@ class _ReminderToggle extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PipBubble extends StatefulWidget {
+  final String text;
+  const _PipBubble({required this.text});
+
+  @override
+  State<_PipBubble> createState() => _PipBubbleState();
+}
+
+class _PipBubbleState extends State<_PipBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: (widget.text.length * 60).clamp(900, 3200)),
+  );
+  late final Animation<int> _chars =
+      StepTween(begin: 0, end: widget.text.length)
+          .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+
+  int _lastTickedAt = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _chars.addListener(() {
+      final shown = _chars.value;
+      if (shown > _lastTickedAt && shown - _lastTickedAt >= 2) {
+        _lastTickedAt = shown;
+        HapticFeedback.selectionClick();
+      }
+    });
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) _ctl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SpeechBubblePainter(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(26, 14, 18, 16),
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Professor Pip',
+            style: TextStyle(
+              color: AppColors.burgundy,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          AnimatedBuilder(
+            animation: _chars,
+            builder: (_, _) {
+              final shown = widget.text.substring(0, _chars.value);
+              final isTyping = _chars.value < widget.text.length;
+              return RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                  children: [
+                    TextSpan(text: shown),
+                    if (isTyping)
+                      const TextSpan(
+                        text: '▍',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeechBubblePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const tailWidth = 14.0;
+    const tailHeight = 26.0;
+    final radius = const Radius.circular(22);
+    final tailCenterY = size.height / 2;
+    final bodyLeft = tailWidth;
+
+    final path = Path()
+      // Start at top-left of body (after rounding)
+      ..moveTo(bodyLeft + radius.x, 0)
+      ..lineTo(size.width - radius.x, 0)
+      ..arcToPoint(
+        Offset(size.width, radius.y),
+        radius: radius,
+      )
+      ..lineTo(size.width, size.height - radius.y)
+      ..arcToPoint(
+        Offset(size.width - radius.x, size.height),
+        radius: radius,
+      )
+      ..lineTo(bodyLeft + radius.x, size.height)
+      ..arcToPoint(
+        Offset(bodyLeft, size.height - radius.y),
+        radius: radius,
+      )
+      // Down the left edge to the tail bottom
+      ..lineTo(bodyLeft, tailCenterY + tailHeight / 2)
+      // Out to the tail tip
+      ..lineTo(0, tailCenterY)
+      // Back up to the tail top
+      ..lineTo(bodyLeft, tailCenterY - tailHeight / 2)
+      // Up to the top-left corner
+      ..lineTo(bodyLeft, radius.y)
+      ..arcToPoint(
+        Offset(bodyLeft + radius.x, 0),
+        radius: radius,
+      )
+      ..close();
+
+    // Drop shadow
+    canvas.drawPath(
+      path.shift(const Offset(3, 4)),
+      Paint()
+        ..color = Brutal.borderColor
+        ..style = PaintingStyle.fill,
+    );
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Brutal.borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = Brutal.borderWidth
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _CloseButton extends StatelessWidget {

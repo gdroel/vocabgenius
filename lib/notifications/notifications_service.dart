@@ -20,6 +20,7 @@ class NotificationsService {
         requestBadgePermission: false,
         requestSoundPermission: false,
       ),
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     );
     await _plugin.initialize(settings);
     _initialized = true;
@@ -44,8 +45,8 @@ class NotificationsService {
     final fireAt = tz.TZDateTime.now(tz.local).add(delay);
     await _plugin.zonedSchedule(
       _trialReminderId,
-      'Your free trial ends tomorrow',
-      'Cancel anytime in Settings → Subscriptions if you don\'t want to keep going.',
+      'Your Professor Pip starts tomorrow!',
+      "We're excited for you to continue learning",
       fireAt,
       const NotificationDetails(
         iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
