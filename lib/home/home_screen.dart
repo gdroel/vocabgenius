@@ -78,10 +78,16 @@ class _HomeScreenState extends State<HomeScreen> {
               _TopBar(
                 followedCount: repo.followed.length,
                 onTopics: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const TopicsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const TopicsScreen(),
+                    settings: const RouteSettings(name: 'TopicsScreen'),
+                  ),
                 ),
                 onSaved: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SavedScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const SavedScreen(),
+                    settings: const RouteSettings(name: 'SavedScreen'),
+                  ),
                 ),
               ),
               const Spacer(flex: 3),
@@ -113,7 +119,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _EmptyState(
                   hasFollowed: hasFollowed,
                   onChooseTopics: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TopicsScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const TopicsScreen(),
+                      settings: const RouteSettings(name: 'TopicsScreen'),
+                    ),
                   ),
                 ),
               const Spacer(flex: 4),
@@ -121,7 +130,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 enabled: word != null,
                 bookmarked: isBookmarked,
                 onAccount: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AccountScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const AccountScreen(),
+                    settings: const RouteSettings(name: 'AccountScreen'),
+                  ),
                 ),
                 onNext: () => _pickNext(repo),
                 onBookmark: word == null

@@ -17,6 +17,7 @@ class _TopicsScreenState extends State<TopicsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
+        settings: const RouteSettings(name: 'PaywallScreen'),
         builder: (_) => PaywallScreen(
           onDismiss: () => Navigator.of(context).pop(),
           onPurchased: () => Navigator.of(context).pop(),

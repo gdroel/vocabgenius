@@ -11,26 +11,29 @@ import 'topics/topics_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final onboardingStep = prefs.getInt('onboarding_step') ?? 0;
+
   final repo = TopicsRepository();
-  final billing = BillingService();
+  final billing = BillingService()..loadCachedPro(prefs);
   final bookmarks = BookmarksRepository();
-  final prefs = SharedPreferences.getInstance();
-  final results = await Future.wait([
+
+  await Future.wait([
     repo.load(),
-    billing.init(),
     bookmarks.load(),
     NotificationsService.instance.init(),
-    Posthog().reloadFeatureFlags().catchError((_) {}),
-    prefs,
   ]);
-  final onboardingStep =
-      (results.last as SharedPreferences).getInt('onboarding_step') ?? 0;
+
   runApp(ProfessorPipApp(
     topicsRepo: repo,
     billing: billing,
     bookmarks: bookmarks,
     onboardingStep: onboardingStep,
   ));
+
+  // Background work that shouldn't block first paint.
+  billing.init();
+  Posthog().reloadFeatureFlags().catchError((_) {});
 }
 
 class ProfessorPipApp extends StatelessWidget {
@@ -58,9 +61,13 @@ class ProfessorPipApp extends StatelessWidget {
             title: 'Professor Pip',
             debugShowCheckedModeBanner: false,
             theme: buildOnboardingTheme(),
-            home: billing.isPro
-                ? const HomeScreen()
-                : OnboardingFlow(initialStep: onboardingStep),
+            navigatorObservers: [PosthogObserver()],
+            home: ListenableBuilder(
+              listenable: billing,
+              builder: (_, _) => billing.isPro
+                  ? const HomeScreen()
+                  : OnboardingFlow(initialStep: onboardingStep),
+            ),
           ),
         ),
       ),

@@ -64,6 +64,7 @@ class _AccountScreenState extends State<AccountScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
+        settings: const RouteSettings(name: 'PaywallScreen'),
         builder: (_) => PaywallScreen(
           onDismiss: () => Navigator.of(context).pop(),
           onPurchased: () => Navigator.of(context).pop(),
@@ -125,6 +126,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       label: 'Terms of service',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'LegalScreen-Terms'),
                           builder: (_) => const LegalScreen(
                             title: 'Terms of service',
                             body: termsOfServiceBody,
@@ -138,6 +140,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       label: 'Privacy policy',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
+                          settings: const RouteSettings(name: 'LegalScreen-Privacy'),
                           builder: (_) => const LegalScreen(
                             title: 'Privacy policy',
                             body: privacyPolicyBody,

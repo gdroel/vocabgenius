@@ -23,10 +23,11 @@ class BillingService extends ChangeNotifier {
   ProductDetails? get annualProduct => _annualProduct;
   String? get lastError => _lastError;
 
-  Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
+  void loadCachedPro(SharedPreferences prefs) {
     _isPro = prefs.getBool(_entitlementCacheKey) ?? false;
+  }
 
+  Future<void> init() async {
     _available = await _iap.isAvailable();
     if (!_available) {
       _lastError = 'Store not available';
