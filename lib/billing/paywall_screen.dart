@@ -528,7 +528,7 @@ class _CloseButton extends StatelessWidget {
       onTap: onTap,
       child: const Padding(
         padding: EdgeInsets.all(8),
-        child: Icon(Icons.close, size: 18, color: AppColors.burgundy),
+        child: Icon(Icons.close, size: 24, color: AppColors.burgundy),
       ),
     );
   }
