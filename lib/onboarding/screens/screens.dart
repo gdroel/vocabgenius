@@ -460,6 +460,67 @@ class _Step04NameState extends State<Step04Name> {
   }
 }
 
+// 4b. Lockscreen preview
+class Step04bLockscreenIntro extends StatelessWidget {
+  final StepCallbacks cb;
+  const Step04bLockscreenIntro({super.key, required this.cb});
+
+  @override
+  Widget build(BuildContext context) {
+    return OnboardingScaffold(
+      progress: cb.progress,
+      onBack: cb.back,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            const _PipIntroBubble(
+              lines: ['See a new word each hour on your lock screen!'],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Brutal.borderColor,
+                    width: Brutal.borderWidth,
+                  ),
+                  boxShadow: Brutal.shadow(dx: 3, dy: 4),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Transform.scale(
+                  scale: 1.25,
+                  child: Image.asset(
+                    'assets/hero-image.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Center(
+                child: Image.asset(
+                  'assets/lockscreen.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            PrimaryButton(label: 'Continue', onPressed: cb.next),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // 5. Customize app intro
 class Step05CustomizeIntro extends StatelessWidget {
   final StepCallbacks cb;

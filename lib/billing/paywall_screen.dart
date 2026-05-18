@@ -160,13 +160,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              const _Timeline(),
+              _Timeline(showReminder: _hardPaywall),
               const Spacer(flex: 1),
-              _ReminderToggle(
-                value: _reminderBeforeTrialEnds,
-                onChanged: _onReminderToggle,
-              ),
-              const SizedBox(height: 10),
+              if (_hardPaywall) ...[
+                _ReminderToggle(
+                  value: _reminderBeforeTrialEnds,
+                  onChanged: _onReminderToggle,
+                ),
+                const SizedBox(height: 10),
+              ],
               if (billing?.lastError != null && !(billing?.isPro ?? false))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -215,7 +217,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
 }
 
 class _Timeline extends StatelessWidget {
-  const _Timeline();
+  final bool showReminder;
+  const _Timeline({this.showReminder = false});
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -232,7 +235,8 @@ class _Timeline extends StatelessWidget {
     final items = [
       ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
       ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
-      ('${_fmt(reminder)} - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
+      if (showReminder)
+        ('${_fmt(reminder)} - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
       ('${_fmt(billing)} - Become member', "You're official!", Icons.workspace_premium_rounded),
     ];
     return Container(
@@ -248,65 +252,72 @@ class _Timeline extends StatelessWidget {
       ),
       child: Column(
         children: [
-          for (int i = 0; i < items.length; i++) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: i < 2 ? AppColors.success : AppColors.creamSoft,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        items[i].$3,
-                        size: 12,
-                        color: i < 2 ? Colors.white : AppColors.muted,
-                      ),
-                    ),
-                    if (i < items.length - 1)
+          for (int i = 0; i < items.length; i++)
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    children: [
                       Container(
-                        width: 2,
+                        width: 22,
                         height: 22,
-                        color: i < 1 ? AppColors.success : AppColors.creamSoft,
+                        decoration: BoxDecoration(
+                          color: i < 2 ? AppColors.success : AppColors.creamSoft,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          items[i].$3,
+                          size: 12,
+                          color: i < 2 ? Colors.white : AppColors.muted,
+                        ),
                       ),
-                  ],
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 2, bottom: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          items[i].$1,
-                          style: const TextStyle(
-                            color: AppColors.ink,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 17,
+                      if (i < items.length - 1)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            color: i < 1
+                                ? AppColors.success
+                                : AppColors.creamSoft,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          items[i].$2,
-                          style: const TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 15,
-                            height: 1.25,
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        top: 2,
+                        bottom: i < items.length - 1 ? 16 : 4,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            items[i].$1,
+                            style: const TextStyle(
+                              color: AppColors.ink,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            items[i].$2,
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 15,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
         ],
       ),
     );

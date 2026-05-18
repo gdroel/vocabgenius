@@ -25,6 +25,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     (cb) => Step02TailorIntro(cb: cb),
     (cb) => Step03Gender(cb: cb),
     (cb) => Step04Name(cb: cb),
+    (cb) => Step04bLockscreenIntro(cb: cb),
     (cb) => Step05CustomizeIntro(cb: cb),
     (cb) => Step11Categories(cb: cb),
     (cb) => Step12Curiosity(cb: cb),
