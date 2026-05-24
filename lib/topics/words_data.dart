@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'words_data_extras.dart';
+
 class Word {
   final String topicId;
   final String word;
@@ -2263,13 +2265,13 @@ class WordsData {
     'oldmoney': _oldMoney,
     'emotions': _emotions,
     'love': _love,
-    'business': _business,
-    'science': _science,
-    'philosophy': _philosophy,
-    'literature': _literature,
-    'cuisine': _cuisine,
-    'travel': _travel,
-    'music': _music,
+    'business': [..._business, ...kBusinessExtras],
+    'science': [..._science, ...kScienceExtras],
+    'philosophy': [..._philosophy, ...kPhilosophyExtras],
+    'literature': [..._literature, ...kLiteratureExtras],
+    'cuisine': [..._cuisine, ...kCuisineExtras],
+    'travel': [..._travel, ...kTravelExtras],
+    'music': [..._music, ...kMusicExtras],
     'psychology': _psychology,
     'latin': _latin,
   };
