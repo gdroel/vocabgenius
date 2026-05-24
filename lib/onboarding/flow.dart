@@ -7,6 +7,7 @@ import 'theme.dart';
 import 'screens/screens.dart';
 
 const _kOnboardingStepKey = 'onboarding_step';
+const _kOnboardingCompletedKey = 'onboarding_completed';
 
 class OnboardingFlow extends StatefulWidget {
   final int initialStep;
@@ -69,9 +70,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   void _skip() => _next();
 
   void _finish() {
-    SharedPreferences.getInstance()
-        .then((p) => p.remove(_kOnboardingStepKey))
-        .catchError((_) => false);
+    SharedPreferences.getInstance().then((p) {
+      p.remove(_kOnboardingStepKey);
+      p.setBool(_kOnboardingCompletedKey, true);
+    }).catchError((_) {});
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => const HomeScreen(),

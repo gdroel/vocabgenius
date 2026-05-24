@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:facebook_app_events/facebook_app_events.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,7 @@ class BillingService extends ChangeNotifier {
 
   void loadCachedPro(SharedPreferences prefs) {
     _isPro = prefs.getBool(_entitlementCacheKey) ?? false;
+    _pushProStatusToWidget(_isPro);
   }
 
   Future<void> init() async {
@@ -134,12 +136,19 @@ class BillingService extends ChangeNotifier {
     }
   }
 
+  static const _widgetChannel = MethodChannel('professor_pip/widget');
+
   Future<void> _setPro(bool value) async {
     if (_isPro == value) return;
     _isPro = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_entitlementCacheKey, value);
+    _pushProStatusToWidget(value);
     notifyListeners();
+  }
+
+  void _pushProStatusToWidget(bool isPro) {
+    _widgetChannel.invokeMethod('setProStatus', isPro).catchError((_) {});
   }
 
   // Test-only helper to clear the cached entitlement.

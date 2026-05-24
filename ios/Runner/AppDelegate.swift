@@ -8,6 +8,7 @@ import FBSDKCoreKit
   private static let appGroupId = "group.com.gaberoeloffs.professorpip"
   private static let followedTopicsKey = "followedTopics"
   private static let lastWordKey = "lastWord"
+  private static let proStatusKey = "proStatus"
   private static let channelName = "professor_pip/widget"
 
   override func application(
@@ -61,6 +62,14 @@ import FBSDKCoreKit
           } else {
             defaults?.removeObject(forKey: AppDelegate.lastWordKey)
           }
+          if #available(iOS 14.0, *) {
+            WidgetCenter.shared.reloadAllTimelines()
+          }
+          result(nil)
+        case "setProStatus":
+          let isPro = (call.arguments as? Bool) ?? false
+          let defaults = UserDefaults(suiteName: AppDelegate.appGroupId)
+          defaults?.set(isPro, forKey: AppDelegate.proStatusKey)
           if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadAllTimelines()
           }

@@ -4,6 +4,19 @@ import SwiftUI
 private let appGroupId = "group.com.gaberoeloffs.professorpip"
 private let followedTopicsKey = "followedTopics"
 private let lastWordKey = "lastWord"
+private let proStatusKey = "proStatus"
+
+private func isProUser() -> Bool {
+    let defaults = UserDefaults(suiteName: appGroupId)
+    return defaults?.bool(forKey: proStatusKey) ?? false
+}
+
+private let upgradeEntry = VocabEntry(
+    date: .now,
+    word: "Upgrade",
+    partOfSpeech: "",
+    definition: "Upgrade plan to see words hourly."
+)
 
 private struct AppWord {
     let word: String
@@ -77,6 +90,10 @@ struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> VocabEntry { emptyStateEntry }
 
     func getSnapshot(in context: Context, completion: @escaping (VocabEntry) -> Void) {
+        if !isProUser() {
+            completion(upgradeEntry)
+            return
+        }
         if let last = lastWordFromApp() {
             completion(VocabEntry(
                 date: Date(),
@@ -91,13 +108,21 @@ struct Provider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<VocabEntry>) -> Void) {
-        let pool = wordPool()
         let cal = Calendar(identifier: .gregorian)
         let now = Date()
         let topOfHour = cal.date(
             from: cal.dateComponents([.year, .month, .day, .hour], from: now)
         ) ?? now
 
+        if !isProUser() {
+            // No active subscription — show a static upgrade prompt and
+            // re-check in a few hours in case the user upgrades.
+            let refresh = cal.date(byAdding: .hour, value: 4, to: topOfHour) ?? now
+            completion(Timeline(entries: [upgradeEntry], policy: .after(refresh)))
+            return
+        }
+
+        let pool = wordPool()
         var entries: [VocabEntry] = []
         // The current hour's entry mirrors whatever word the app last
         // showed (if any). Subsequent hours rotate deterministically from
