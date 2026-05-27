@@ -4,6 +4,7 @@ import 'package:posthog_flutter/posthog_flutter.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import '../onboarding/widgets.dart';
+import '../user_profile.dart';
 import 'billing_service.dart';
 
 class PaywallScreen extends StatefulWidget {
@@ -154,8 +155,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Expanded(
-                    child: _PipBubble(text: 'Enjoy your free trial!'),
+                  Expanded(
+                    child: _PipBubble(
+                      text: UserProfile.firstName.isEmpty
+                          ? 'Enjoy your free trial!'
+                          : 'Enjoy your free trial, ${UserProfile.firstName}!',
+                    ),
                   ),
                 ],
               ),

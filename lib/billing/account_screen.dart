@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../onboarding/theme.dart';
 import 'billing_service.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
-
-const _manageSubsUrl = 'https://apps.apple.com/account/subscriptions';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -60,6 +57,19 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _openCustomerCenter() async {
+    final billing = _billing;
+    if (billing == null) return;
+    try {
+      await billing.presentCustomerCenter();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open subscription manager: $e')),
+      );
+    }
+  }
+
   void _openPaywall() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -73,21 +83,11 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not open $url')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
     final isPro = billing?.isPro ?? false;
-    final price = billing?.annualProduct?.price ?? '\$24.99/year';
+    final price = billing?.annualPriceLabel ?? '\$59.99/year';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -117,7 +117,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     _AccountRow(
                       icon: Icons.settings_rounded,
                       label: 'Manage subscription',
-                      onTap: () => _openUrl(_manageSubsUrl),
+                      onTap: _openCustomerCenter,
                     ),
                     const SizedBox(height: 24),
                     const _SectionLabel(text: 'Legal'),

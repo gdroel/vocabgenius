@@ -1,5 +1,6 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# RevenueCat requires iOS 13+; pin explicitly so CocoaPods doesn't fall back
+# to its default and the resulting build doesn't drift from the Xcode target.
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

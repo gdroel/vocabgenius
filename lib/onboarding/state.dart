@@ -6,6 +6,7 @@ class OnboardingData extends ChangeNotifier {
   bool dailyRoutine = true;
   bool notificationsEnabled = true;
   int notificationsPerDay = 10;
+  int wordsPerDay = 12;
   TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay endTime = const TimeOfDay(hour: 22, minute: 0);
   String theme = 'light';

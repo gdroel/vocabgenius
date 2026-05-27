@@ -5,17 +5,37 @@ private let appGroupId = "group.com.gaberoeloffs.professorpip"
 private let followedTopicsKey = "followedTopics"
 private let lastWordKey = "lastWord"
 private let proStatusKey = "proStatus"
+private let wordsPerDayKey = "wordsPerDay"
+private let defaultWordsPerDay = 12
+private let maxWordsPerDay = 48
 
 private func isProUser() -> Bool {
     let defaults = UserDefaults(suiteName: appGroupId)
     return defaults?.bool(forKey: proStatusKey) ?? false
 }
 
+private func wordsPerDay() -> Int {
+    let defaults = UserDefaults(suiteName: appGroupId)
+    // `integer(forKey:)` returns 0 when the key is missing; treat that as "use
+    // the default" rather than "user wants 0 words" so a fresh install gets a
+    // sensible cadence before onboarding finishes pushing the real value.
+    let raw = defaults?.object(forKey: wordsPerDayKey) as? Int
+    guard let raw = raw else { return defaultWordsPerDay }
+    return min(max(raw, 0), maxWordsPerDay)
+}
+
 private let upgradeEntry = VocabEntry(
     date: .now,
     word: "Upgrade",
     partOfSpeech: "",
-    definition: "Upgrade plan to see words hourly."
+    definition: "Upgrade plan to see new words."
+)
+
+private let pausedEntry = VocabEntry(
+    date: .now,
+    word: "Paused",
+    partOfSpeech: "",
+    definition: "Set words per day in the app to start learning again."
 )
 
 private struct AppWord {
@@ -70,12 +90,17 @@ private func makeVocabEntry(for date: Date, pool: [WidgetWord]) -> VocabEntry {
             definition: emptyStateEntry.definition
         )
     }
-    // Deterministic per-hour selection so widgets across families stay in sync.
+    // Deterministic per-slot selection so widgets across families stay in sync.
+    // Seed by minute-of-day so sub-hourly cadences (e.g., every 30 min when
+    // wordsPerDay == 48) still get a unique word per slot.
     let cal = Calendar(identifier: .gregorian)
-    let components = cal.dateComponents([.year, .dayOfYear, .hour], from: date)
-    let seed = (components.year ?? 0) * 100000
-        + (components.dayOfYear ?? 0) * 100
-        + (components.hour ?? 0)
+    let components = cal.dateComponents(
+        [.year, .dayOfYear, .hour, .minute], from: date
+    )
+    let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    let seed = (components.year ?? 0) * 1_000_000
+        + (components.dayOfYear ?? 0) * 2_000
+        + minuteOfDay
     let index = abs(seed) % pool.count
     let w = pool[index]
     return VocabEntry(
@@ -110,38 +135,58 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<VocabEntry>) -> Void) {
         let cal = Calendar(identifier: .gregorian)
         let now = Date()
-        let topOfHour = cal.date(
-            from: cal.dateComponents([.year, .month, .day, .hour], from: now)
+        let startOfDay = cal.date(
+            from: cal.dateComponents([.year, .month, .day], from: now)
         ) ?? now
 
         if !isProUser() {
             // No active subscription — show a static upgrade prompt and
             // re-check in a few hours in case the user upgrades.
-            let refresh = cal.date(byAdding: .hour, value: 4, to: topOfHour) ?? now
+            let refresh = cal.date(byAdding: .hour, value: 4, to: now) ?? now
             completion(Timeline(entries: [upgradeEntry], policy: .after(refresh)))
             return
         }
 
+        let wpd = wordsPerDay()
+        if wpd <= 0 {
+            // User dialed cadence down to 0 — pin a "paused" entry and
+            // re-check once a day so the widget picks up changes.
+            let refresh = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? now
+            completion(Timeline(entries: [pausedEntry], policy: .after(refresh)))
+            return
+        }
+
         let pool = wordPool()
+        let secondsPerSlot = 86_400.0 / Double(wpd)
+        let secondsIntoDay = now.timeIntervalSince(startOfDay)
+        let currentSlotIndex = Int(secondsIntoDay / secondsPerSlot)
+        let currentSlotStart = startOfDay
+            .addingTimeInterval(Double(currentSlotIndex) * secondsPerSlot)
+
+        // Always generate one full day's worth of slots so the timeline keeps
+        // rotating even if WidgetCenter doesn't reload us promptly.
+        let slotsToGenerate = wpd
         var entries: [VocabEntry] = []
-        // The current hour's entry mirrors whatever word the app last
-        // showed (if any). Subsequent hours rotate deterministically from
-        // the followed-topics pool until the user opens the app again.
+
+        // The current slot's entry mirrors whatever word the app last
+        // showed (if any) so the widget stays in sync with the in-app view.
         if let last = lastWordFromApp() {
             entries.append(VocabEntry(
-                date: topOfHour,
+                date: currentSlotStart,
                 word: last.word,
                 partOfSpeech: last.pos,
                 definition: last.definition
             ))
         } else {
-            entries.append(makeVocabEntry(for: topOfHour, pool: pool))
+            entries.append(makeVocabEntry(for: currentSlotStart, pool: pool))
         }
-        for offset in 1..<24 {
-            let d = cal.date(byAdding: .hour, value: offset, to: topOfHour) ?? now
+        for offset in 1..<slotsToGenerate {
+            let d = currentSlotStart
+                .addingTimeInterval(Double(offset) * secondsPerSlot)
             entries.append(makeVocabEntry(for: d, pool: pool))
         }
-        let refresh = cal.date(byAdding: .hour, value: 24, to: topOfHour) ?? now
+        let refresh = currentSlotStart
+            .addingTimeInterval(Double(slotsToGenerate) * secondsPerSlot)
         completion(Timeline(entries: entries, policy: .after(refresh)))
     }
 }
@@ -211,7 +256,7 @@ struct ProfessorPipWidget: Widget {
             }
         }
         .configurationDisplayName("Word of the hour")
-        .description("A vocabulary word from your followed topics, refreshed hourly.")
+        .description("A vocabulary word from your followed topics, refreshed on the cadence you pick in the app.")
         .supportedFamilies([
             .accessoryRectangular,
             .accessoryInline,

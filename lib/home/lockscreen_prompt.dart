@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../onboarding/theme.dart';
+import '../user_profile.dart';
 
 const _suppressKey = 'lockscreen_prompt_dismissed_v1';
 
@@ -133,10 +134,10 @@ class _PipBubbleHeader extends StatelessWidget {
               ),
               boxShadow: Brutal.shadow(dx: 3, dy: 4),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Professor Pip',
                   style: TextStyle(
                     color: AppColors.burgundy,
@@ -145,10 +146,12 @@ class _PipBubbleHeader extends StatelessWidget {
                     letterSpacing: 0.4,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  "Add me to your lock screen so you'll learn a new word every time you check your phone.",
-                  style: TextStyle(
+                  UserProfile.firstName.isEmpty
+                      ? "Add me to your lock screen so you'll learn a new word every time you check your phone."
+                      : "Hey ${UserProfile.firstName}, add me to your lock screen so you'll learn a new word every time you check your phone.",
+                  style: const TextStyle(
                     color: AppColors.ink,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

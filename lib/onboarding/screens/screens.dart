@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../billing/paywall_screen.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
+import '../../user_profile.dart';
+import '../../widget_preferences.dart';
 import '../flow.dart';
 import '../state.dart';
 import '../theme.dart';
@@ -239,7 +243,7 @@ class Step01Welcome extends StatelessWidget {
 
 class _PipIntroBubble extends StatefulWidget {
   final List<String> lines;
-  const _PipIntroBubble({required this.lines});
+  const _PipIntroBubble({super.key, required this.lines});
 
   @override
   State<_PipIntroBubble> createState() => _PipIntroBubbleState();
@@ -375,7 +379,7 @@ class _Step04NameState extends State<Step04Name> {
   @override
   void initState() {
     super.initState();
-    _ctl = TextEditingController();
+    _ctl = TextEditingController(text: UserProfile.firstName);
   }
 
   @override
@@ -413,7 +417,10 @@ class _Step04NameState extends State<Step04Name> {
                   fontWeight: FontWeight.w600,
                   color: AppColors.ink,
                 ),
-                onChanged: (v) => data.update(() => data.name = v),
+                onChanged: (v) {
+                  data.update(() => data.name = v);
+                  UserProfile.save(v);
+                },
                 decoration: InputDecoration(
                   hintText: 'Your name',
                   hintStyle: const TextStyle(color: AppColors.muted),
@@ -467,6 +474,10 @@ class Step04bLockscreenIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = OnboardingScope.of(context).name.trim();
+    final line = name.isEmpty
+        ? 'See new words on your lockscreen!'
+        : 'Hey $name! See new words on your lockscreen!';
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
@@ -476,8 +487,9 @@ class Step04bLockscreenIntro extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 8),
-            const _PipIntroBubble(
-              lines: ['See a new word each hour on your lock screen!'],
+            _PipIntroBubble(
+              key: ValueKey(line),
+              lines: [line],
             ),
             const SizedBox(height: 16),
             Center(
@@ -521,16 +533,194 @@ class Step04bLockscreenIntro extends StatelessWidget {
   }
 }
 
-// 5. Customize app intro
-class Step05CustomizeIntro extends StatelessWidget {
+// 4c. Words per day
+class Step04cWordsPerDay extends StatelessWidget {
   final StepCallbacks cb;
-  const Step05CustomizeIntro({super.key, required this.cb});
+  const Step04cWordsPerDay({super.key, required this.cb});
+
   @override
-  Widget build(BuildContext context) => _IntroScreen(
-    cb: cb,
-    icon: Icons.tune_rounded,
-    title: 'Customize the app to\nimprove your experience',
-  );
+  Widget build(BuildContext context) {
+    final data = OnboardingScope.of(context);
+    final name = data.name.trim();
+    final line = name.isEmpty
+        ? 'How many words do you want to learn per day?'
+        : 'Hey $name, how many words do you want to learn per day?';
+    return OnboardingScaffold(
+      progress: cb.progress,
+      onBack: cb.back,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            _PipIntroBubble(
+              key: ValueKey(line),
+              lines: [line],
+            ),
+            Expanded(
+              child: Center(
+                child: _WordsPerDayPicker(
+                  value: data.wordsPerDay,
+                  min: WidgetPreferences.minWordsPerDay,
+                  max: WidgetPreferences.maxWordsPerDay,
+                  onChanged: (v) {
+                    data.update(() => data.wordsPerDay = v);
+                    WidgetPreferences.setWordsPerDay(v);
+                  },
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 220,
+              child: Center(
+                child: Image.asset(
+                  'assets/lockscreen.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            PrimaryButton(label: 'Continue', onPressed: cb.next),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WordsPerDayPicker extends StatefulWidget {
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+  const _WordsPerDayPicker({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  @override
+  State<_WordsPerDayPicker> createState() => _WordsPerDayPickerState();
+}
+
+class _WordsPerDayPickerState extends State<_WordsPerDayPicker> {
+  Timer? _holdTimer;
+
+  void _bump(int delta) {
+    final next = widget.value + delta;
+    if (next < widget.min || next > widget.max) {
+      _stopHold();
+      return;
+    }
+    HapticFeedback.selectionClick();
+    widget.onChanged(next);
+  }
+
+  void _startHold(int delta) {
+    _bump(delta);
+    _holdTimer?.cancel();
+    _holdTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+      _bump(delta);
+    });
+  }
+
+  void _stopHold() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canDecrement = widget.value > widget.min;
+    final canIncrement = widget.value < widget.max;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _StepperButton(
+          icon: Icons.remove_rounded,
+          enabled: canDecrement,
+          onTap: () => _bump(-1),
+          onHoldStart: () => _startHold(-1),
+          onHoldEnd: _stopHold,
+        ),
+        SizedBox(
+          width: 180,
+          child: Text(
+            '${widget.value}',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSerifDisplay(
+              color: AppColors.ink,
+              fontSize: 128,
+              height: 1,
+            ),
+          ),
+        ),
+        _StepperButton(
+          icon: Icons.add_rounded,
+          enabled: canIncrement,
+          onTap: () => _bump(1),
+          onHoldStart: () => _startHold(1),
+          onHoldEnd: _stopHold,
+        ),
+      ],
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback onHoldStart;
+  final VoidCallback onHoldEnd;
+  const _StepperButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.onHoldStart,
+    required this.onHoldEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onTap : null,
+      onLongPressStart: enabled ? (_) => onHoldStart() : null,
+      onLongPressEnd: (_) => onHoldEnd(),
+      onLongPressCancel: onHoldEnd,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Brutal.borderColor,
+            width: Brutal.borderWidth,
+          ),
+          boxShadow: Brutal.shadow(dx: 3, dy: 4),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          icon,
+          size: 28,
+          color: enabled
+              ? AppColors.ink
+              : AppColors.muted.withValues(alpha: 0.4),
+        ),
+      ),
+    );
+  }
 }
 
 // 6. Daily routine streak
@@ -1310,6 +1500,10 @@ class Step22OneMinuteADay extends StatelessWidget {
   const Step22OneMinuteADay({super.key, required this.cb});
   @override
   Widget build(BuildContext context) {
+    final name = OnboardingScope.of(context).name.trim();
+    final line = name.isEmpty
+        ? "You'll become more articulate in just 1 minute a day, without even opening the app."
+        : "$name, you'll become more articulate in just 1 minute a day — without even opening the app.";
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
@@ -1318,10 +1512,9 @@ class Step22OneMinuteADay extends StatelessWidget {
         child: Column(
           children: [
             const Spacer(flex: 1),
-            const _PipIntroBubble(
-              lines: [
-                "You'll become more articulate in just 1 minute a day, without even opening the app.",
-              ],
+            _PipIntroBubble(
+              key: ValueKey(line),
+              lines: [line],
             ),
             const SizedBox(height: 22),
             Container(
@@ -1360,6 +1553,10 @@ class Step23ThreeDaysFree extends StatelessWidget {
   const Step23ThreeDaysFree({super.key, required this.cb});
   @override
   Widget build(BuildContext context) {
+    final name = OnboardingScope.of(context).name.trim();
+    final line = name.isEmpty
+        ? 'We offer 3 days for free so you can see the results of daily vocabulary learning.'
+        : '$name, your first 3 days are on me — see what daily vocabulary can do for you.';
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
@@ -1368,10 +1565,9 @@ class Step23ThreeDaysFree extends StatelessWidget {
         child: Column(
           children: [
             const Spacer(flex: 1),
-            const _PipIntroBubble(
-              lines: [
-                'We offer 3 days for free so you can see the results of daily vocabulary learning.',
-              ],
+            _PipIntroBubble(
+              key: ValueKey(line),
+              lines: [line],
             ),
             const SizedBox(height: 22),
             Container(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../home/home_screen.dart';
+import '../user_profile.dart';
+import '../widget_preferences.dart';
 import 'state.dart';
 import 'theme.dart';
 import 'screens/screens.dart';
@@ -18,7 +20,9 @@ class OnboardingFlow extends StatefulWidget {
 }
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
-  final _data = OnboardingData();
+  final _data = OnboardingData()
+    ..name = UserProfile.firstName
+    ..wordsPerDay = WidgetPreferences.wordsPerDay;
   late final PageController _controller;
   late int _index;
 
@@ -28,7 +32,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     ('Onboarding-03-Gender', (cb) => Step03Gender(cb: cb)),
     ('Onboarding-04-Name', (cb) => Step04Name(cb: cb)),
     ('Onboarding-04b-LockscreenIntro', (cb) => Step04bLockscreenIntro(cb: cb)),
-    ('Onboarding-05-CustomizeIntro', (cb) => Step05CustomizeIntro(cb: cb)),
+    ('Onboarding-04c-WordsPerDay', (cb) => Step04cWordsPerDay(cb: cb)),
     ('Onboarding-11-Categories', (cb) => Step11Categories(cb: cb)),
     ('Onboarding-12-Curiosity', (cb) => Step12Curiosity(cb: cb)),
     ('Onboarding-13-VocabLevel', (cb) => Step13VocabLevel(cb: cb)),

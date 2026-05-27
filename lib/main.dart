@@ -9,6 +9,8 @@ import 'notifications/notifications_service.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
 import 'topics/topics_repository.dart';
+import 'user_profile.dart';
+import 'widget_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +18,8 @@ void main() async {
   final onboardingStep = prefs.getInt('onboarding_step') ?? 0;
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
 
+  UserProfile.loadCached(prefs);
+  WidgetPreferences.loadCached(prefs);
   final repo = TopicsRepository();
   final billing = BillingService()..loadCachedPro(prefs);
   final bookmarks = BookmarksRepository();

@@ -1,28 +1,41 @@
 import 'dart:async';
 import 'package:facebook_app_events/facebook_app_events.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const annualProductId = 'pipannualplan';
+// Public RevenueCat SDK key. Safe to ship in the binary — RC keys are public
+// by design and are scoped per-platform in the dashboard.
+const _revenueCatApiKey = 'appl_RPjmAwadUSDGppZlitlegDrWKAs';
+
+// Must match the entitlement identifier configured in the RevenueCat dashboard.
+const proEntitlementId = 'Professor Pip Pro';
+
 const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
 class BillingService extends ChangeNotifier {
-  final InAppPurchase _iap = InAppPurchase.instance;
   final FacebookAppEvents _fb = FacebookAppEvents();
-  StreamSubscription<List<PurchaseDetails>>? _sub;
 
   bool _isPro = false;
-  bool _available = false;
-  bool _sawEntitlementThisSession = false;
-  ProductDetails? _annualProduct;
+  bool _configured = false;
+  Offering? _currentOffering;
   String? _lastError;
 
   bool get isPro => _isPro;
-  bool get storeAvailable => _available;
-  ProductDetails? get annualProduct => _annualProduct;
+  bool get storeAvailable => _configured && _currentOffering != null;
+  Offering? get currentOffering => _currentOffering;
+  Package? get annualPackage => _currentOffering?.annual;
+  Package? get monthlyPackage => _currentOffering?.monthly;
   String? get lastError => _lastError;
+
+  /// Formatted, localized price for the annual package (e.g. "$59.99").
+  String? get annualPriceLabel => annualPackage?.storeProduct.priceString;
+
+  /// Formatted, localized price for the monthly package (e.g. "$4.99").
+  String? get monthlyPriceLabel => monthlyPackage?.storeProduct.priceString;
 
   void loadCachedPro(SharedPreferences prefs) {
     _isPro = prefs.getBool(_entitlementCacheKey) ?? false;
@@ -30,130 +43,170 @@ class BillingService extends ChangeNotifier {
   }
 
   Future<void> init() async {
-    _available = await _iap.isAvailable();
-    if (!_available) {
-      _lastError = 'Store not available';
+    if (_configured) return;
+    try {
+      await Purchases.setLogLevel(
+        kDebugMode ? LogLevel.debug : LogLevel.warn,
+      );
+      await Purchases.configure(PurchasesConfiguration(_revenueCatApiKey));
+      _configured = true;
+    } on PlatformException catch (e) {
+      _lastError = e.message ?? 'RevenueCat configuration failed';
       notifyListeners();
       return;
     }
 
-    _sub = _iap.purchaseStream.listen(
-      _handlePurchaseUpdates,
-      onError: (Object error) {
-        _lastError = error.toString();
-        notifyListeners();
-      },
-    );
+    Purchases.addCustomerInfoUpdateListener(_onCustomerInfo);
 
-    final response = await _iap.queryProductDetails({annualProductId});
-    if (response.productDetails.isNotEmpty) {
-      _annualProduct = response.productDetails.first;
-    } else if (response.notFoundIDs.contains(annualProductId)) {
-      _lastError = 'Product $annualProductId not found in App Store Connect';
-    }
+    // Hydrate entitlement + offerings concurrently. CustomerInfo returns the
+    // cached state immediately and refreshes from the server in the background;
+    // the listener catches any drift.
+    await Future.wait<void>([
+      _refreshCustomerInfo(),
+      _refreshOfferings(),
+    ]);
 
-    // Re-verify the cached entitlement with StoreKit before we yield. If
-    // no active subscription comes back within a few seconds, downgrade
-    // to free so we route to onboarding/paywall instead of the home screen.
-    await _verifyEntitlement();
     notifyListeners();
   }
 
-  Future<void> _verifyEntitlement() async {
-    _sawEntitlementThisSession = false;
+  Future<void> _refreshCustomerInfo() async {
     try {
-      await _iap.restorePurchases();
-    } catch (_) {
-      // ignore — we'll just rely on whatever the stream delivers
+      final info = await Purchases.getCustomerInfo();
+      await _applyCustomerInfo(info);
+    } on PlatformException catch (e) {
+      _lastError = e.message ?? 'Failed to load customer info';
     }
-    await Future<void>.delayed(const Duration(seconds: 3));
-    if (!_sawEntitlementThisSession && _isPro) {
-      await _setPro(false);
+  }
+
+  Future<void> _refreshOfferings() async {
+    try {
+      final offerings = await Purchases.getOfferings();
+      _currentOffering = offerings.current;
+      if (_currentOffering == null) {
+        _lastError = 'No current offering configured in RevenueCat dashboard';
+      }
+    } on PlatformException catch (e) {
+      _lastError = e.message ?? 'Failed to load offerings';
     }
+  }
+
+  void _onCustomerInfo(CustomerInfo info) {
+    _applyCustomerInfo(info);
+  }
+
+  Future<void> _applyCustomerInfo(CustomerInfo info) async {
+    final active =
+        info.entitlements.all[proEntitlementId]?.isActive ?? false;
+    if (active == _isPro) return;
+    _isPro = active;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_entitlementCacheKey, active);
+    _pushProStatusToWidget(active);
+    notifyListeners();
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
+    Purchases.removeCustomerInfoUpdateListener(_onCustomerInfo);
     super.dispose();
   }
 
-  Future<bool> buyAnnual() async {
-    final product = _annualProduct;
-    if (product == null) {
-      _lastError = 'Product not loaded';
+  /// Buys the annual package from the current offering.
+  /// Returns true if the user now has the Pro entitlement.
+  Future<bool> buyAnnual() => _purchase(annualPackage);
+
+  /// Buys the monthly package from the current offering.
+  Future<bool> buyMonthly() => _purchase(monthlyPackage);
+
+  Future<bool> _purchase(Package? package) async {
+    if (package == null) {
+      _lastError = 'Package unavailable — check the RevenueCat offering';
       notifyListeners();
       return false;
     }
-    final param = PurchaseParam(productDetails: product);
-    return _iap.buyNonConsumable(purchaseParam: param);
-  }
+    _lastError = null;
 
-  Future<void> restore() async {
-    await _iap.restorePurchases();
-  }
-
-  Future<void> _handlePurchaseUpdates(List<PurchaseDetails> updates) async {
-    for (final p in updates) {
-      switch (p.status) {
-        case PurchaseStatus.pending:
-          break;
-        case PurchaseStatus.purchased:
-        case PurchaseStatus.restored:
-          if (p.productID == annualProductId) {
-            final wasPro = _isPro;
-            _sawEntitlementThisSession = true;
-            await _setPro(true);
-            if (!wasPro && p.status == PurchaseStatus.purchased) {
-              await _logStartTrial(p);
-            }
-          }
-          if (p.pendingCompletePurchase) {
-            await _iap.completePurchase(p);
-          }
-          break;
-        case PurchaseStatus.error:
-          _lastError = p.error?.message ?? 'Purchase error';
-          notifyListeners();
-          break;
-        case PurchaseStatus.canceled:
-          break;
+    try {
+      final wasPro = _isPro;
+      final result = await Purchases.purchase(PurchaseParams.package(package));
+      await _applyCustomerInfo(result.customerInfo);
+      final nowPro =
+          result.customerInfo.entitlements.all[proEntitlementId]?.isActive ??
+              false;
+      if (nowPro && !wasPro) {
+        await _logStartTrial(package);
       }
+      return nowPro;
+    } on PlatformException catch (e) {
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      if (code == PurchasesErrorCode.purchaseCancelledError) {
+        // Silent — user explicitly dismissed the purchase sheet.
+        return false;
+      }
+      _lastError = e.message ?? code.toString();
+      notifyListeners();
+      return false;
     }
   }
 
-  Future<void> _logStartTrial(PurchaseDetails p) async {
-    final product = _annualProduct;
-    final currency = product?.currencyCode ?? 'USD';
+  Future<bool> restore() async {
+    _lastError = null;
+    try {
+      final info = await Purchases.restorePurchases();
+      await _applyCustomerInfo(info);
+      return _isPro;
+    } on PlatformException catch (e) {
+      _lastError = e.message ?? 'Restore failed';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Presents the RevenueCat-managed paywall configured in the dashboard.
+  /// Use this when you want the paywall layout/copy/pricing managed remotely
+  /// rather than the bundled Pip-branded screen.
+  Future<PaywallResult> presentRevenueCatPaywall({
+    bool displayCloseButton = true,
+  }) {
+    return RevenueCatUI.presentPaywall(
+      offering: _currentOffering,
+      displayCloseButton: displayCloseButton,
+    );
+  }
+
+  /// Presents the RevenueCat Customer Center modal — handles cancel,
+  /// restore, refund requests, plan changes, and support contact.
+  Future<void> presentCustomerCenter() {
+    return RevenueCatUI.presentCustomerCenter();
+  }
+
+  Future<void> _logStartTrial(Package package) async {
+    final product = package.storeProduct;
     try {
       await _fb.logStartTrial(
-        orderId: p.purchaseID ?? p.productID,
-        currency: currency,
-        price: product?.rawPrice ?? 0,
+        orderId: product.identifier,
+        currency: product.currencyCode,
+        price: product.price,
       );
     } catch (_) {
-      // Non-fatal: analytics failure shouldn't block the purchase flow.
+      // Non-fatal: analytics failure must not block the purchase flow.
     }
   }
 
   static const _widgetChannel = MethodChannel('professor_pip/widget');
 
-  Future<void> _setPro(bool value) async {
-    if (_isPro == value) return;
-    _isPro = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_entitlementCacheKey, value);
-    _pushProStatusToWidget(value);
-    notifyListeners();
-  }
-
   void _pushProStatusToWidget(bool isPro) {
     _widgetChannel.invokeMethod('setProStatus', isPro).catchError((_) {});
   }
 
-  // Test-only helper to clear the cached entitlement.
   @visibleForTesting
-  Future<void> resetForTesting() => _setPro(false);
+  Future<void> resetForTesting() async {
+    _isPro = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_entitlementCacheKey, false);
+    _pushProStatusToWidget(false);
+    notifyListeners();
+  }
 }
 
 class BillingScope extends InheritedNotifier<BillingService> {

@@ -97,6 +97,7 @@ class _TopicsScreenState extends State<TopicsScreen> {
                       topic: topic,
                       following: repo.isFollowing(topic.id),
                       locked: locked,
+                      isPro: billing.isPro,
                       onToggle: () => _onToggle(repo, billing, topic),
                     );
                   },
@@ -211,11 +212,13 @@ class _TopicRow extends StatelessWidget {
   final Topic topic;
   final bool following;
   final bool locked;
+  final bool isPro;
   final VoidCallback onToggle;
   const _TopicRow({
     required this.topic,
     required this.following,
     required this.locked,
+    required this.isPro,
     required this.onToggle,
   });
 
@@ -265,7 +268,7 @@ class _TopicRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (TopicsCatalog.isFree(topic.id)) ...[
+                    if (!isPro && TopicsCatalog.isFree(topic.id)) ...[
                       const SizedBox(width: 8),
                       const _FreeBadge(),
                     ],
