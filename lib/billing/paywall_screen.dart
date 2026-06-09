@@ -299,7 +299,6 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    final price = billing?.pipMonthlyPriceLabel;
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -308,15 +307,7 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                height: 28,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _CloseButton(
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 28),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -342,11 +333,10 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Expanded(
+                  const Expanded(
                     child: _PipBubble(
-                      text: UserProfile.firstName.isEmpty
-                          ? 'Unlock everything!'
-                          : 'Unlock everything, ${UserProfile.firstName}!',
+                      text: 'We have a special offer for you, '
+                          'get daily vocab words for just \$5 a month!',
                     ),
                   ),
                 ],
@@ -386,12 +376,6 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                price != null ? '$price per month' : 'Monthly plan',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.muted, fontSize: 14),
               ),
               const SizedBox(height: 14),
               GestureDetector(
