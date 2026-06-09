@@ -246,6 +246,9 @@ function selectCustomer(id) {
       <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
     </div>
     <div class="card" style="margin-bottom:12px">
+      <input id="pushTitle" placeholder="Title (optional)" autocomplete="off"
+        style="width:100%;padding:10px;margin-bottom:8px;border-radius:6px;
+               border:1px solid var(--border);background:#0d1117;color:var(--text);font:inherit">
       <input id="pushMsg" placeholder="Notification message" autocomplete="off"
         style="width:100%;padding:10px;margin-bottom:8px;border-radius:6px;
                border:1px solid var(--border);background:#0d1117;color:var(--text);font:inherit">
@@ -278,19 +281,22 @@ async function refreshTimeline(id) {
 }
 
 async function sendPush(id) {
+  const titleEl = document.getElementById('pushTitle');
   const msg = document.getElementById('pushMsg');
   const out = document.getElementById('pushResult');
+  const title = titleEl.value.trim();
   const body = msg.value.trim();
-  if (!body) { out.textContent = 'Enter a message first.'; return; }
+  if (!title && !body) { out.textContent = 'Enter a title or message first.'; return; }
   out.textContent = 'Sending…';
   try {
     const res = await fetch('/send-push', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: id, body }),
+      body: JSON.stringify({ userId: id, title, body }),
     });
     const data = await res.json();
     if (res.ok) {
       out.textContent = `✅ Delivered to ${data.sent}/${data.total} device(s).`;
+      titleEl.value = '';
       msg.value = '';
     } else {
       out.textContent = '❌ ' + (data.error || 'Send failed') +
