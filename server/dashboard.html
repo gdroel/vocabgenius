@@ -8,6 +8,7 @@
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d;
     --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7; --good: #3fb950;
+    --sandbox: #d29922; --prod: #3fb950;
   }
   * { box-sizing: border-box; }
   body {
@@ -15,17 +16,18 @@
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   header {
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 18px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 600; }
   header .spacer { flex: 1; }
-  button {
-    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
-    padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
-  }
-  button:disabled { opacity: .55; cursor: default; }
   .meta { color: var(--muted); font-size: 13px; }
+  select, button {
+    border-radius: 6px; padding: 8px 14px; font-size: 14px; font-weight: 600;
+    border: 1px solid var(--border); background: #21262d; color: var(--text); cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
   #status { margin: 0 24px; padding: 10px 14px; border-radius: 6px; display: none;
             font-size: 13px; white-space: pre-wrap; }
   #status.show { display: block; }
@@ -37,11 +39,18 @@
     border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
     padding: 12px 16px; margin-bottom: 10px;
   }
-  .card .top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .card .type { font-weight: 700; }
   .card .sub { color: var(--muted); }
   .card .time { margin-left: auto; color: var(--muted); font-size: 12px; }
   .card .note { color: var(--accent); margin: 4px 0 8px; }
+  .badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor;
+  }
+  .badge.sandbox { color: var(--sandbox); }
+  .badge.production { color: var(--prod); }
+  .badge.unknown { color: var(--muted); }
   .grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 2px 18px; font-size: 13px;
@@ -55,8 +64,15 @@
   <h1>🛎️ App Store Server Notifications</h1>
   <span class="meta" id="count">0 events</span>
   <div class="spacer"></div>
-  <span class="meta" id="updated"></span>
-  <button id="testBtn" onclick="requestTest()">Request Test Notification</button>
+  <label class="meta">show
+    <select id="filter" onchange="render(lastEvents)">
+      <option value="all">all</option>
+      <option value="Sandbox">sandbox</option>
+      <option value="Production">production</option>
+    </select>
+  </label>
+  <button onclick="requestTest('Sandbox')" id="btnSandbox">Test · Sandbox</button>
+  <button class="primary" onclick="requestTest('Production')" id="btnProd">Test · Production</button>
 </header>
 <div id="status"></div>
 <main>
@@ -67,22 +83,23 @@
 const statusEl = document.getElementById('status');
 const feedEl = document.getElementById('feed');
 const countEl = document.getElementById('count');
-const updatedEl = document.getElementById('updated');
-const btn = document.getElementById('testBtn');
+const filterEl = document.getElementById('filter');
+const buttons = [document.getElementById('btnSandbox'), document.getElementById('btnProd')];
+let lastEvents = [];
 
 function showStatus(msg, ok) {
   statusEl.textContent = msg;
   statusEl.className = 'show ' + (ok ? 'ok' : 'err');
 }
 
-async function requestTest() {
-  btn.disabled = true;
-  showStatus('Requesting a TEST notification from Apple…', true);
+async function requestTest(env) {
+  buttons.forEach(b => b.disabled = true);
+  showStatus('Requesting a ' + env + ' TEST notification from Apple…', true);
   try {
-    const res = await fetch('/request-test', { method: 'POST' });
+    const res = await fetch('/request-test?env=' + encodeURIComponent(env), { method: 'POST' });
     const data = await res.json();
     if (res.ok) {
-      showStatus('✅ Apple accepted the request (' + (data.environment || '') + ').\n' +
+      showStatus('✅ Apple accepted the ' + env + ' request.\n' +
                  'A TEST event should appear in the feed below within a few seconds.\n' +
                  'testNotificationToken: ' + (data.testNotificationToken || '(none)'), true);
     } else {
@@ -92,13 +109,13 @@ async function requestTest() {
   } catch (e) {
     showStatus('❌ Could not reach the server: ' + e.message, false);
   } finally {
-    btn.disabled = false;
+    buttons.forEach(b => b.disabled = false);
   }
 }
 
 const ROWS = [
-  ['environment', 'env'], ['product', 'product'], ['price', 'price'],
-  ['expires', 'expires'], ['transactionId', 'txn'], ['originalTransactionId', 'orig txn'],
+  ['product', 'product'], ['price', 'price'], ['expires', 'expires'],
+  ['transactionId', 'txn'], ['originalTransactionId', 'orig txn'],
   ['autoRenew', 'auto-renew'], ['bundleId', 'bundle'], ['revokeReason', 'revoke reason'],
 ];
 
@@ -106,18 +123,29 @@ function fmtTime(iso) {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
 
+function envClass(env) {
+  if (env === 'Sandbox') return 'sandbox';
+  if (env === 'Production') return 'production';
+  return 'unknown';
+}
+
 function render(events) {
-  countEl.textContent = events.length + (events.length === 1 ? ' event' : ' events');
-  updatedEl.textContent = 'updated ' + new Date().toLocaleTimeString();
-  if (!events.length) {
-    feedEl.innerHTML = '<div class="empty">Waiting for notifications…</div>';
+  lastEvents = events;
+  const want = filterEl.value;
+  const shown = want === 'all' ? events : events.filter(e => e.environment === want);
+  countEl.textContent = shown.length + (shown.length === 1 ? ' event' : ' events') +
+                        (want === 'all' ? '' : ' · ' + want.toLowerCase());
+  if (!shown.length) {
+    feedEl.innerHTML = '<div class="empty">No matching notifications yet…</div>';
     return;
   }
-  feedEl.innerHTML = events.map(e => {
+  feedEl.innerHTML = shown.map(e => {
     const fields = ROWS.filter(([k]) => e[k] !== null && e[k] !== undefined && e[k] !== '')
       .map(([k, label]) => `<div><span>${label}</span><code>${escape(e[k])}</code></div>`).join('');
+    const env = e.environment || 'Unknown';
     return `<div class="card">
       <div class="top">
+        <span class="badge ${envClass(env)}">${escape(env)}</span>
         <span class="type">${e.icon || ''} ${escape(e.type)}</span>
         ${e.subtype ? `<span class="sub">/ ${escape(e.subtype)}</span>` : ''}
         <span class="time">${fmtTime(e.received_at)}</span>

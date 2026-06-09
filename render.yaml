@@ -18,5 +18,3 @@ services:
         sync: false
       - key: ASC_PRIVATE_KEY
         sync: false
-      - key: ASC_ENVIRONMENT
-        value: Sandbox

@@ -23,12 +23,16 @@ Usage:
     python3 server/appstore_notification_listener.py            # listens on :8080
     PORT=9000 python3 server/appstore_notification_listener.py  # custom port
 
+A single /notifications endpoint receives BOTH sandbox and production events —
+point both the Sandbox and Production Server URLs in App Store Connect at it.
+Each event is tagged with Apple's own data.environment ("Sandbox"/"Production").
+
 Credentials for the "request test" button (set as env vars / Render secrets):
     ASC_KEY_ID        App Store Connect API key ID
     ASC_ISSUER_ID     App Store Connect issuer ID
     ASC_BUNDLE_ID     app bundle id (e.g. com.vocabgenius.app)
     ASC_PRIVATE_KEY   contents of the .p8 private key (PEM, multi-line)
-    ASC_ENVIRONMENT   "Sandbox" (default) or "Production"
+The test button chooses Sandbox vs Production per request (same key works for both).
 """
 
 import base64
@@ -42,6 +46,7 @@ import urllib.error
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 # PyJWT is only needed for the "request test notification" button. Keep the
 # import soft so the listener still runs (and logs) even if it's missing.
@@ -172,20 +177,22 @@ def log_summary(s):
     sys.stdout.flush()
 
 
-def request_apple_test_notification():
+def request_apple_test_notification(environment="Sandbox"):
     """Ask Apple to send a TEST notification to our configured URL.
 
-    Returns (status_code, result_dict). Builds a short-lived ES256 JWT from the
-    App Store Connect API key in the environment.
+    `environment` is "Sandbox" or "Production" — Apple delivers the TEST to the
+    correspondingly-configured Server URL. Returns (status_code, result_dict);
+    builds a short-lived ES256 JWT from the App Store Connect API key in the env.
     """
     if pyjwt is None:
         return 500, {"error": "PyJWT not installed on the server (pip install -r requirements.txt)."}
+    if environment not in APPLE_HOSTS:
+        environment = "Sandbox"
 
     key_id = os.environ.get("ASC_KEY_ID")
     issuer_id = os.environ.get("ASC_ISSUER_ID")
     bundle_id = os.environ.get("ASC_BUNDLE_ID")
     private_key = os.environ.get("ASC_PRIVATE_KEY")
-    environment = os.environ.get("ASC_ENVIRONMENT", "Sandbox")
 
     missing = [name for name, val in [
         ("ASC_KEY_ID", key_id), ("ASC_ISSUER_ID", issuer_id),
@@ -194,7 +201,7 @@ def request_apple_test_notification():
     if missing:
         return 400, {"error": f"Missing credentials: {', '.join(missing)}. Set them as env vars on the server."}
 
-    host = APPLE_HOSTS.get(environment, APPLE_HOSTS["Sandbox"])
+    host = APPLE_HOSTS[environment]
     now = int(time.time())
     token = pyjwt.encode(
         {"iss": issuer_id, "iat": now, "exp": now + 600,
@@ -255,8 +262,10 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(404, "not found")
 
     def do_POST(self):
-        if self.path == "/request-test":
-            status, result = request_apple_test_notification()
+        if self.path.split("?")[0] == "/request-test":
+            query = parse_qs(urlparse(self.path).query)
+            environment = query.get("env", ["Sandbox"])[0]
+            status, result = request_apple_test_notification(environment)
             self._reply(status, json.dumps(result), "application/json")
             return
 
