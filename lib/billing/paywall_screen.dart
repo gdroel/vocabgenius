@@ -223,6 +223,193 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 }
 
+/// Monthly, no-free-trial paywall opened from a push notification.
+/// Mirrors [PaywallScreen] but swaps the trial timeline for the onboarding
+/// lockscreen image and adds a 30-day money-back guarantee. Buying grants the
+/// same Pro entitlement as the annual plan.
+class MonthlyPaywallScreen extends StatefulWidget {
+  const MonthlyPaywallScreen({super.key});
+
+  @override
+  State<MonthlyPaywallScreen> createState() => _MonthlyPaywallScreenState();
+}
+
+class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
+  bool _busy = false;
+  bool _wasPro = false;
+  BillingService? _billing;
+
+  @override
+  void initState() {
+    super.initState();
+    Telemetry.notificationScreen();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final billing = BillingScope.of(context);
+    if (!identical(billing, _billing)) {
+      _billing?.removeListener(_onBillingChange);
+      _billing = billing;
+      _wasPro = billing.isPro;
+      billing.addListener(_onBillingChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _billing?.removeListener(_onBillingChange);
+    super.dispose();
+  }
+
+  void _onBillingChange() {
+    final billing = _billing;
+    if (billing == null) return;
+    if (!_wasPro && billing.isPro) {
+      _wasPro = true;
+      if (mounted) Navigator.of(context).maybePop();
+      return;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _buy() async {
+    final billing = _billing;
+    if (billing == null) return;
+    setState(() => _busy = true);
+    try {
+      await billing.buyPipMonthly();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restore() async {
+    final billing = _billing;
+    if (billing == null) return;
+    setState(() => _busy = true);
+    try {
+      await billing.restore();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final billing = _billing;
+    final price = billing?.pipMonthlyPriceLabel;
+    return Scaffold(
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 28,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _CloseButton(
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Brutal.borderColor,
+                        width: Brutal.borderWidth,
+                      ),
+                      boxShadow: Brutal.shadow(dx: 2, dy: 3),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Transform.scale(
+                      scale: 1.3,
+                      child: Image.asset(
+                        'assets/hero-image.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _PipBubble(
+                      text: UserProfile.firstName.isEmpty
+                          ? 'Unlock everything!'
+                          : 'Unlock everything, ${UserProfile.firstName}!',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Center(
+                  child: Image.asset(
+                    'assets/lockscreen.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (billing?.lastError != null && !(billing?.isPro ?? false))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    billing!.lastError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.burgundy,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              PrimaryButton(
+                label: _busy ? 'Working…' : 'Sign Up',
+                onPressed: _busy ? null : _buy,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '30-day money-back guarantee',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                price != null ? '$price per month' : 'Monthly plan',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.muted, fontSize: 14),
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: _busy ? null : _restore,
+                child: const Text(
+                  'Privacy   Terms & Conditions   Restore',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.muted, fontSize: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Timeline extends StatelessWidget {
   final bool showReminder;
   const _Timeline({this.showReminder = false});

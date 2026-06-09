@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'billing/billing_service.dart';
-import 'hello_there_screen.dart';
+import 'billing/paywall_screen.dart';
 
 /// Bridges native APNs push to Flutter:
 ///   - receives the device token from iOS and registers it on the server
@@ -62,9 +62,9 @@ class PushService {
   }
 
   void _navigate(String route) {
-    // The target screen is fixed for now regardless of route value.
+    // The destination is fixed for now regardless of route value.
     navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (_) => const HelloThereScreen()),
+      MaterialPageRoute(builder: (_) => const MonthlyPaywallScreen()),
     );
   }
 

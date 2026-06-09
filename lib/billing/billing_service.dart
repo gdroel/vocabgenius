@@ -18,6 +18,9 @@ const proEntitlementId = 'Professor Pip Pro';
 
 const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
+// Product id for the monthly (no-trial) plan shown on the push paywall.
+const _monthlyProductId = 'pipmonthly';
+
 class BillingService extends ChangeNotifier {
   final FacebookAppEvents _fb = FacebookAppEvents();
 
@@ -142,6 +145,24 @@ class BillingService extends ChangeNotifier {
 
   /// Buys the monthly package from the current offering.
   Future<bool> buyMonthly() => _purchase(monthlyPackage);
+
+  /// The 'pipmonthly' package, matched by product id across the current
+  /// offering's packages (falls back to the offering's monthly slot).
+  Package? get pipMonthlyPackage {
+    final offering = _currentOffering;
+    if (offering == null) return null;
+    for (final package in offering.availablePackages) {
+      if (package.storeProduct.identifier == _monthlyProductId) return package;
+    }
+    return offering.monthly;
+  }
+
+  /// Localized price for the 'pipmonthly' product (e.g. "$4.99").
+  String? get pipMonthlyPriceLabel =>
+      pipMonthlyPackage?.storeProduct.priceString;
+
+  /// Buys 'pipmonthly'. Grants the same Pro entitlement as the annual plan.
+  Future<bool> buyPipMonthly() => _purchase(pipMonthlyPackage);
 
   Future<bool> _purchase(Package? package) async {
     if (package == null) {
