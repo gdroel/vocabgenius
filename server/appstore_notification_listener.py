@@ -11,8 +11,8 @@ This server decodes those payloads (without signature verification — see
 the note at the bottom) and logs each event as it arrives.
 
 Usage:
-    python3 tools/appstore_notification_listener.py            # listens on :8080
-    PORT=9000 python3 tools/appstore_notification_listener.py  # custom port
+    python3 server/appstore_notification_listener.py            # listens on :8080
+    PORT=9000 python3 server/appstore_notification_listener.py  # custom port
 
 Then expose it to Apple with ngrok and paste the public URL (+ /notifications)
 into App Store Connect:

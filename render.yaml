@@ -3,6 +3,7 @@ services:
     name: pipserver
     runtime: python
     plan: free
+    rootDir: server
     buildCommand: pip install -r requirements.txt
-    startCommand: python3 tools/appstore_notification_listener.py
+    startCommand: python3 appstore_notification_listener.py
     healthCheckPath: /
