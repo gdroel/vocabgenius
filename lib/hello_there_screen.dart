@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
 
-/// Placeholder destination opened when a user taps a push notification.
-class HelloThereScreen extends StatelessWidget {
+import 'telemetry.dart';
+
+/// The notification screen — destination opened when a user taps a push.
+class HelloThereScreen extends StatefulWidget {
   const HelloThereScreen({super.key});
+
+  @override
+  State<HelloThereScreen> createState() => _HelloThereScreenState();
+}
+
+class _HelloThereScreenState extends State<HelloThereScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Telemetry.notificationScreen();
+  }
 
   @override
   Widget build(BuildContext context) {

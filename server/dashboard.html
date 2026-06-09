@@ -221,73 +221,77 @@ function renderCustomers(customers) {
   list.innerHTML = customers.map(c => {
     const opened = c.counts.app_opened || 0;
     const paywall = c.counts.paywall_reached || 0;
+    const notif = c.counts.notification_screen || 0;
     return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
                  onclick="selectCustomer('${esc(c.userId)}')">
       <div class="id">${esc(c.userId)}</div>
       <div class="row">
         <span class="pill">📱 ${opened}</span>
         <span class="pill">💳 ${paywall}</span>
+        <span class="pill">🔔 ${notif}</span>
         <span style="margin-left:auto">${c.lastSeen ? fmtTime(c.lastSeen) : ''}</span>
       </div>
     </div>`;
   }).join('');
 }
 
-async function selectCustomer(id) {
+// Build the customer detail ONCE on selection. The send box is never
+// re-rendered by polling (that was wiping the text you typed); only the
+// timeline list refreshes, in place.
+function selectCustomer(id) {
   selectedCustomer = id;
   renderCustomers(lastCustomers); // refresh active highlight
-  const detail = document.getElementById('custDetail');
+  document.getElementById('custDetail').innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <input id="pushMsg" placeholder="Notification message" autocomplete="off"
+        style="width:100%;padding:10px;margin-bottom:8px;border-radius:6px;
+               border:1px solid var(--border);background:#0d1117;color:var(--text);font:inherit">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="primary" onclick="sendPush('${esc(id)}')">Send notification</button>
+        <span class="meta">opens the notification screen</span>
+      </div>
+      <div id="pushResult" class="meta" style="margin-top:8px;white-space:pre-wrap"></div>
+    </div>
+    <div class="timeline" id="tlContainer"><div class="empty" style="padding:16px">Loading…</div></div>`;
+  refreshTimeline(id);
+}
+
+async function refreshTimeline(id) {
+  const container = document.getElementById('tlContainer');
+  if (!container || id !== selectedCustomer) return;
   try {
     const res = await fetch('/customer?id=' + encodeURIComponent(id));
     const events = await res.json();
-    if (!events.length) { detail.innerHTML = '<div class="empty">No events for this customer.</div>'; return; }
-    const rows = events.slice().reverse().map(e => `
-      <div class="tl-row">
-        <span class="ico">${e.icon || '•'}</span>
-        <span class="lbl">${esc(e.label || e.event)}</span>
-        <span class="when">${fmtTime(e.received_at)}</span>
-      </div>`).join('');
-    detail.innerHTML = `<div class="card" style="margin-bottom:12px">
-        <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
-        <div class="meta">${events.length} event${events.length === 1 ? '' : 's'}</div>
-      </div>
-      ${sendBox(id)}
-      <div class="timeline">${rows}</div>`;
-  } catch (e) {
-    detail.innerHTML = '<div class="empty">Could not load customer.</div>';
-  }
-}
-
-function sendBox(id) {
-  return `<div class="card sendbox" style="margin-bottom:12px">
-    <div style="font-weight:600;margin-bottom:8px">Send push notification</div>
-    <input id="pushTitle" placeholder="Title" style="width:100%;margin-bottom:8px;padding:8px;
-           border-radius:6px;border:1px solid var(--border);background:#0d1117;color:var(--text)">
-    <textarea id="pushBody" placeholder="Message" rows="3" style="width:100%;margin-bottom:8px;padding:8px;
-           border-radius:6px;border:1px solid var(--border);background:#0d1117;color:var(--text);
-           font:inherit;resize:vertical"></textarea>
-    <div style="display:flex;align-items:center;gap:12px">
-      <button class="primary" onclick="sendPush('${esc(id)}')">Send notification</button>
-      <span class="meta">opens the “hello there” screen</span>
-    </div>
-    <div id="pushResult" class="meta" style="margin-top:8px;white-space:pre-wrap"></div>
-  </div>`;
+    if (id !== selectedCustomer) return; // selection changed mid-fetch
+    container.innerHTML = events.length
+      ? events.slice().reverse().map(e => `
+          <div class="tl-row">
+            <span class="ico">${e.icon || '•'}</span>
+            <span class="lbl">${esc(e.label || e.event)}</span>
+            <span class="when">${fmtTime(e.received_at)}</span>
+          </div>`).join('')
+      : '<div class="empty" style="padding:16px">No events yet.</div>';
+  } catch (e) { /* keep last render */ }
 }
 
 async function sendPush(id) {
-  const title = document.getElementById('pushTitle').value;
-  const body = document.getElementById('pushBody').value;
+  const msg = document.getElementById('pushMsg');
   const out = document.getElementById('pushResult');
-  if (!title && !body) { out.textContent = 'Enter a title or message first.'; return; }
+  const body = msg.value.trim();
+  if (!body) { out.textContent = 'Enter a message first.'; return; }
   out.textContent = 'Sending…';
   try {
     const res = await fetch('/send-push', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: id, title, body }),
+      body: JSON.stringify({ userId: id, body }),
     });
     const data = await res.json();
     if (res.ok) {
       out.textContent = `✅ Delivered to ${data.sent}/${data.total} device(s).`;
+      msg.value = '';
     } else {
       out.textContent = '❌ ' + (data.error || 'Send failed') +
         (data.results ? '\n' + JSON.stringify(data.results) : '') +
@@ -307,7 +311,7 @@ async function poll() {
     } else {
       const res = await fetch('/customers');
       renderCustomers(await res.json());
-      if (selectedCustomer) selectCustomer(selectedCustomer);
+      if (selectedCustomer) refreshTimeline(selectedCustomer);
     }
   } catch (e) { /* keep last render on transient errors */ }
 }

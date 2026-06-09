@@ -19,6 +19,9 @@ class Telemetry {
   /// A paywall was shown to the user.
   static void paywallReached() => _send('paywall_reached');
 
+  /// The user reached the notification screen (tapped a push).
+  static void notificationScreen() => _send('notification_screen');
+
   static Future<void> _send(String event) async {
     String? userId;
     try {

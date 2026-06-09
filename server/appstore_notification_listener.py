@@ -72,6 +72,7 @@ _CONN = None
 CLIENT_EVENT_TYPES = {
     "app_opened": {"label": "Opened app", "icon": "📱"},
     "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
+    "notification_screen": {"label": "Reached notification screen", "icon": "🔔"},
 }
 
 
@@ -338,8 +339,12 @@ def send_push(user_id, title, body):
         return 400, {"error": "Could not sign the APNs token — check APNS_PRIVATE_KEY (.p8 PEM).",
                      "detail": f"{type(err).__name__}: {err}"}
 
-    payload = {"aps": {"alert": {"title": title, "body": body}, "sound": "default"},
-               "route": "hello"}
+    alert = {}
+    if title:
+        alert["title"] = title
+    if body:
+        alert["body"] = body
+    payload = {"aps": {"alert": alert, "sound": "default"}, "route": "hello"}
     headers = {"authorization": f"bearer {provider_token}", "apns-topic": bundle_id,
                "apns-push-type": "alert", "apns-priority": "10"}
     host_order = (["sandbox", "production"] if default_env == "sandbox"
