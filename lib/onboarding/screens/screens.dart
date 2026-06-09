@@ -340,6 +340,185 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
 }
 
 
+/// Professor Pip avatar on the left with a speech bubble (tail pointing at
+/// him) on the right — frees vertical space so a screen's main visual can be
+/// larger. Same look as the paywall.
+class _PipSpeechRow extends StatelessWidget {
+  final List<String> lines;
+  const _PipSpeechRow({super.key, required this.lines});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Brutal.borderColor,
+              width: Brutal.borderWidth,
+            ),
+            boxShadow: Brutal.shadow(dx: 2, dy: 3),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Transform.scale(
+            scale: 1.25,
+            child: Image.asset('assets/hero-image.png', fit: BoxFit.cover),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(child: _TailedPipBubble(lines: lines)),
+      ],
+    );
+  }
+}
+
+class _TailedPipBubble extends StatefulWidget {
+  final List<String> lines;
+  const _TailedPipBubble({required this.lines});
+
+  @override
+  State<_TailedPipBubble> createState() => _TailedPipBubbleState();
+}
+
+class _TailedPipBubbleState extends State<_TailedPipBubble>
+    with SingleTickerProviderStateMixin {
+  late final String _full = widget.lines.join('\n\n');
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: (_full.length * 22).clamp(900, 3200)),
+  );
+  late final Animation<int> _chars = StepTween(begin: 0, end: _full.length)
+      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+
+  int _lastTickedAt = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _chars.addListener(() {
+      final shown = _chars.value;
+      if (shown > _lastTickedAt && shown - _lastTickedAt >= 3) {
+        _lastTickedAt = shown;
+        HapticFeedback.selectionClick();
+      }
+    });
+    Future.delayed(const Duration(milliseconds: 350), () {
+      if (mounted) _ctl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SpeechBubblePainter(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(26, 14, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Professor Pip',
+              style: TextStyle(
+                color: AppColors.burgundy,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+            AnimatedBuilder(
+              animation: _chars,
+              builder: (_, _) {
+                final shown = _full.substring(0, _chars.value);
+                final isTyping = _chars.value < _full.length;
+                return RichText(
+                  text: TextSpan(
+                    style: const TextStyle(
+                      color: AppColors.ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                    children: [
+                      TextSpan(text: shown),
+                      if (isTyping)
+                        const TextSpan(
+                          text: '▍',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeechBubblePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const tailWidth = 14.0;
+    const tailHeight = 26.0;
+    const radius = Radius.circular(22);
+    final tailCenterY = size.height / 2;
+    const bodyLeft = tailWidth;
+
+    final path = Path()
+      ..moveTo(bodyLeft + radius.x, 0)
+      ..lineTo(size.width - radius.x, 0)
+      ..arcToPoint(Offset(size.width, radius.y), radius: radius)
+      ..lineTo(size.width, size.height - radius.y)
+      ..arcToPoint(Offset(size.width - radius.x, size.height), radius: radius)
+      ..lineTo(bodyLeft + radius.x, size.height)
+      ..arcToPoint(Offset(bodyLeft, size.height - radius.y), radius: radius)
+      ..lineTo(bodyLeft, tailCenterY + tailHeight / 2)
+      ..lineTo(0, tailCenterY)
+      ..lineTo(bodyLeft, tailCenterY - tailHeight / 2)
+      ..lineTo(bodyLeft, radius.y)
+      ..arcToPoint(Offset(bodyLeft + radius.x, 0), radius: radius)
+      ..close();
+
+    canvas.drawPath(
+      path.shift(const Offset(3, 4)),
+      Paint()
+        ..color = Brutal.borderColor
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Brutal.borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = Brutal.borderWidth
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 // 2. Tailor word recommendations
 class Step02TailorIntro extends StatelessWidget {
   final StepCallbacks cb;
@@ -487,33 +666,9 @@ class Step04bLockscreenIntro extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 8),
-            _PipIntroBubble(
+            _PipSpeechRow(
               key: ValueKey(line),
               lines: [line],
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Brutal.borderColor,
-                    width: Brutal.borderWidth,
-                  ),
-                  boxShadow: Brutal.shadow(dx: 3, dy: 4),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Transform.scale(
-                  scale: 1.25,
-                  child: Image.asset(
-                    'assets/hero-image.png',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
             ),
             const SizedBox(height: 16),
             Expanded(
