@@ -189,11 +189,13 @@ def request_apple_test_notification(environment="Sandbox"):
     if environment not in APPLE_HOSTS:
         environment = "Sandbox"
 
-    key_id = os.environ.get("ASC_KEY_ID")
-    issuer_id = os.environ.get("ASC_ISSUER_ID")
+    # .strip() guards against the #1 cause of Apple 401s: a stray newline or
+    # space pasted into the Render env var for the Key ID / Issuer ID.
+    key_id = (os.environ.get("ASC_KEY_ID") or "").strip()
+    issuer_id = (os.environ.get("ASC_ISSUER_ID") or "").strip()
     # Bundle id is hardcoded (env var optional, only to override).
-    bundle_id = os.environ.get("ASC_BUNDLE_ID", "com.gaberoeloffs.vocabGenius")
-    private_key = os.environ.get("ASC_PRIVATE_KEY")
+    bundle_id = (os.environ.get("ASC_BUNDLE_ID") or "com.gaberoeloffs.vocabGenius").strip()
+    private_key = (os.environ.get("ASC_PRIVATE_KEY") or "").strip()
 
     missing = [name for name, val in [
         ("ASC_KEY_ID", key_id), ("ASC_ISSUER_ID", issuer_id),
@@ -202,15 +204,24 @@ def request_apple_test_notification(environment="Sandbox"):
     if missing:
         return 400, {"error": f"Missing credentials: {', '.join(missing)}. Set them as env vars on the server."}
 
+    # Identifiers (not secrets) — echoed back on failure so you can cross-check
+    # them against App Store Connect. The .p8 contents are never returned.
+    using = {"key_id": key_id, "issuer_id": issuer_id, "bundle_id": bundle_id,
+             "environment": environment}
+
     host = APPLE_HOSTS[environment]
     now = int(time.time())
-    token = pyjwt.encode(
-        {"iss": issuer_id, "iat": now, "exp": now + 600,
-         "aud": "appstoreconnect-v1", "bid": bundle_id},
-        private_key,
-        algorithm="ES256",
-        headers={"kid": key_id, "typ": "JWT"},
-    )
+    try:
+        token = pyjwt.encode(
+            {"iss": issuer_id, "iat": now, "exp": now + 600,
+             "aud": "appstoreconnect-v1", "bid": bundle_id},
+            private_key,
+            algorithm="ES256",
+            headers={"kid": key_id, "typ": "JWT"},
+        )
+    except Exception as err:  # malformed .p8, wrong key type, etc.
+        return 400, {"error": "Could not sign the token — check ASC_PRIVATE_KEY is the full .p8 PEM.",
+                     "detail": f"{type(err).__name__}: {err}", "using": using}
 
     req = urllib.request.Request(
         f"{host}/inApps/v1/notifications/test",
@@ -227,9 +238,15 @@ def request_apple_test_notification(environment="Sandbox"):
             return resp.status, result
     except urllib.error.HTTPError as err:
         body = err.read().decode(errors="replace")
-        print(f"⚠️  Apple test request failed {err.code}: {body}")
+        print(f"⚠️  Apple test request failed {err.code} (using {using}): {body}")
         sys.stdout.flush()
-        return err.code, {"error": f"Apple returned {err.code}", "detail": body}
+        hint = ""
+        if err.code == 401:
+            hint = ("401 = Apple rejected the token's identity. Verify ASC_KEY_ID and "
+                    "ASC_ISSUER_ID exactly match the key in App Store Connect, and that "
+                    "ASC_PRIVATE_KEY is that same key's .p8.")
+        return err.code, {"error": f"Apple returned {err.code}", "detail": body,
+                          "hint": hint, "using": using}
     except urllib.error.URLError as err:
         return 502, {"error": f"Could not reach Apple: {err.reason}"}
 
