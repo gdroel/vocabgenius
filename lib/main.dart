@@ -8,6 +8,7 @@ import 'home/home_screen.dart';
 import 'notifications/notifications_service.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
+import 'push_service.dart';
 import 'topics/topics_repository.dart';
 import 'user_profile.dart';
 import 'widget_preferences.dart';
@@ -44,6 +45,7 @@ void main() async {
   if (!onboardingCompleted) {
     billing.init();
   }
+  PushService.instance.init();
   Posthog().reloadFeatureFlags().catchError((_) {});
 }
 
@@ -74,6 +76,7 @@ class ProfessorPipApp extends StatelessWidget {
             title: 'Professor Pip',
             debugShowCheckedModeBanner: false,
             theme: buildOnboardingTheme(),
+            navigatorKey: PushService.navigatorKey,
             navigatorObservers: [PosthogObserver()],
             home: ListenableBuilder(
               listenable: billing,

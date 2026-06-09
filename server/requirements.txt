@@ -1,6 +1,7 @@
-# PyJWT + cryptography sign the App Store Connect API token for the "Request
-# Test Notification" button. psycopg2 talks to Render Postgres, where events
-# persist across deploys.
+# PyJWT + cryptography sign the App Store Connect API token (test-notification
+# button) and the APNs provider token (push). psycopg2 talks to Render Postgres
+# where events persist. httpx[http2] is required for APNs (HTTP/2 only).
 PyJWT==2.10.1
 cryptography==44.0.0
 psycopg2-binary==2.9.10
+httpx[http2]==0.28.1

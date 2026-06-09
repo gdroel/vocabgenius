@@ -1,0 +1,80 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
+
+import 'hello_there_screen.dart';
+
+/// Bridges native APNs push to Flutter:
+///   - receives the device token from iOS and registers it on the server
+///     (keyed by the RevenueCat app_user_id, the same id everything else uses),
+///   - navigates to the fixed "hello there" screen when a notification is
+///     tapped (cold-start or warm).
+///
+/// All networking is best-effort and never throws into the UI.
+class PushService {
+  PushService._();
+  static final PushService instance = PushService._();
+
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
+  static const String _baseUrl = 'https://vocabgenius-vx2s.onrender.com';
+  static const MethodChannel _channel = MethodChannel('professor_pip/push');
+
+  Future<void> init() async {
+    _channel.setMethodCallHandler(_onNativeCall);
+    // Pull anything that arrived before the handler was attached: a device
+    // token already issued, and a route if the app was cold-started by a tap.
+    try {
+      final token = await _channel.invokeMethod<String>('getDeviceToken');
+      if (token != null && token.isNotEmpty) _registerDevice(token);
+    } catch (_) {}
+    try {
+      final route = await _channel.invokeMethod<String>('getInitialRoute');
+      if (route != null && route.isNotEmpty) _navigate(route);
+    } catch (_) {}
+  }
+
+  Future<dynamic> _onNativeCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onToken':
+        final token = call.arguments as String?;
+        if (token != null && token.isNotEmpty) _registerDevice(token);
+        break;
+      case 'onNotificationTap':
+        _navigate(call.arguments as String? ?? 'hello');
+        break;
+    }
+    return null;
+  }
+
+  void _navigate(String route) {
+    // The target screen is fixed for now regardless of route value.
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const HelloThereScreen()),
+    );
+  }
+
+  Future<void> _registerDevice(String deviceToken) async {
+    String? userId;
+    try {
+      userId = await Purchases.appUserID;
+    } catch (_) {}
+    try {
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 5);
+      final request =
+          await client.postUrl(Uri.parse('$_baseUrl/register-device'));
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode({'userId': userId, 'deviceToken': deviceToken}));
+      final response = await request.close();
+      await response.drain<void>();
+      client.close();
+    } catch (_) {
+      // Best-effort: a failed registration must not affect the app.
+    }
+  }
+}

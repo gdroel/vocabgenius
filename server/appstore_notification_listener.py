@@ -48,6 +48,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import httpx
 import psycopg2
 import psycopg2.extras
 
@@ -116,7 +117,14 @@ def init_db():
                event TEXT NOT NULL,
                data JSONB NOT NULL)"""
     )
+    db_exec(
+        """CREATE TABLE IF NOT EXISTS device_tokens(
+               device_token TEXT PRIMARY KEY,
+               user_id TEXT NOT NULL,
+               updated_at TEXT NOT NULL)"""
+    )
     db_exec("CREATE INDEX IF NOT EXISTS idx_client_user ON client_events(user_id)")
+    db_exec("CREATE INDEX IF NOT EXISTS idx_device_user ON device_tokens(user_id)")
 
 APPLE_HOSTS = {
     "Sandbox": "https://api.storekit-sandbox.itunes.apple.com",
@@ -272,6 +280,103 @@ def customer_timeline(user_id):
     return [r["data"] for r in rows]  # chronological (oldest first)
 
 
+# ---- Push notifications (APNs) -------------------------------------------
+
+APNS_HOSTS = {
+    "sandbox": "api.sandbox.push.apple.com",
+    "production": "api.push.apple.com",
+}
+# Reasons that mean "right token, wrong APNs environment" — retry the other host.
+APNS_WRONG_ENV = {"BadDeviceToken", "BadEnvironmentKeyInToken"}
+
+
+def store_device_token(user_id, token):
+    db_exec(
+        "INSERT INTO device_tokens(device_token, user_id, updated_at) VALUES(%s, %s, %s) "
+        "ON CONFLICT(device_token) DO UPDATE SET user_id=EXCLUDED.user_id, updated_at=EXCLUDED.updated_at",
+        (token, user_id, datetime.now(tz=timezone.utc).isoformat()),
+    )
+
+
+def tokens_for_user(user_id):
+    rows = db_exec(
+        "SELECT device_token FROM device_tokens WHERE user_id=%s", (user_id,), fetch="all"
+    )
+    return [r["device_token"] for r in rows]
+
+
+def send_push(user_id, title, body):
+    """Send an alert push to every device registered for this customer.
+
+    The payload always carries route="hello" so the app opens the fixed
+    "hello there" screen on tap. Tries the configured APNs environment first
+    and falls back to the other host on an environment-mismatch token error.
+    """
+    tokens = tokens_for_user(user_id)
+    if not tokens:
+        return 404, {"error": "No registered devices for this customer yet."}
+
+    team_id = (os.environ.get("APNS_TEAM_ID") or "").strip()
+    key_id = (os.environ.get("APNS_KEY_ID") or "").strip()
+    private_key = (os.environ.get("APNS_PRIVATE_KEY") or "").strip()
+    bundle_id = (os.environ.get("APNS_BUNDLE_ID") or "com.gaberoeloffs.vocabGenius").strip()
+    default_env = (os.environ.get("APNS_ENVIRONMENT") or "sandbox").strip().lower()
+
+    missing = [n for n, v in [("APNS_TEAM_ID", team_id), ("APNS_KEY_ID", key_id),
+                              ("APNS_PRIVATE_KEY", private_key)] if not v]
+    if missing:
+        return 400, {"error": f"Missing APNs credentials: {', '.join(missing)}. Set them as env vars."}
+    if pyjwt is None:
+        return 500, {"error": "PyJWT not installed on the server."}
+
+    try:
+        provider_token = pyjwt.encode(
+            {"iss": team_id, "iat": int(time.time())},
+            private_key, algorithm="ES256", headers={"kid": key_id},
+        )
+    except Exception as err:
+        return 400, {"error": "Could not sign the APNs token — check APNS_PRIVATE_KEY (.p8 PEM).",
+                     "detail": f"{type(err).__name__}: {err}"}
+
+    payload = {"aps": {"alert": {"title": title, "body": body}, "sound": "default"},
+               "route": "hello"}
+    headers = {"authorization": f"bearer {provider_token}", "apns-topic": bundle_id,
+               "apns-push-type": "alert", "apns-priority": "10"}
+    host_order = (["sandbox", "production"] if default_env == "sandbox"
+                  else ["production", "sandbox"])
+
+    results = []
+    try:
+        with httpx.Client(http2=True, timeout=20) as client:
+            for tok in tokens:
+                outcome = None
+                for env in host_order:
+                    resp = client.post(f"https://{APNS_HOSTS[env]}/3/device/{tok}",
+                                       json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        outcome = {"token": tok[:8] + "…", "ok": True, "environment": env}
+                        break
+                    try:
+                        reason = resp.json().get("reason", "")
+                    except Exception:
+                        reason = resp.text[:120]
+                    if reason in APNS_WRONG_ENV and env != host_order[-1]:
+                        continue  # token belongs to the other environment — retry
+                    if reason in ("Unregistered", "BadDeviceToken"):
+                        db_exec("DELETE FROM device_tokens WHERE device_token=%s", (tok,))
+                    outcome = {"token": tok[:8] + "…", "ok": False,
+                               "status": resp.status_code, "reason": reason}
+                    break
+                results.append(outcome)
+    except Exception as err:
+        return 502, {"error": f"APNs request failed: {type(err).__name__}: {err}"}
+
+    sent = sum(1 for r in results if r and r.get("ok"))
+    print(f"📤 push to {user_id}: {sent}/{len(tokens)} delivered — {results}")
+    sys.stdout.flush()
+    return (200 if sent else 502), {"sent": sent, "total": len(tokens), "results": results}
+
+
 def log_summary(s):
     header = s["type"] + (f" / {s['subtype']}" if s["subtype"] else "")
     clock = datetime.now().strftime("%H:%M:%S")
@@ -397,6 +502,44 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             environment = query.get("env", ["Sandbox"])[0]
             status, result = request_apple_test_notification(environment)
+            self._reply(status, json.dumps(result), "application/json")
+            return
+
+        if self.path == "/register-device":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body = json.loads(raw)
+                token = (body["deviceToken"] or "").strip()
+            except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+                self._reply(400, "bad device registration")
+                return
+            if not token:
+                self._reply(400, json.dumps({"error": "deviceToken required"}), "application/json")
+                return
+            user_id = (body.get("userId") or "anonymous").strip() or "anonymous"
+            store_device_token(user_id, token)
+            print(f"📲 [client] registered device for {user_id}: {token[:8]}…")
+            sys.stdout.flush()
+            self._reply(200, "ok")
+            return
+
+        if self.path == "/send-push":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                self._reply(400, "bad send-push request")
+                return
+            user_id = (body.get("userId") or "").strip()
+            title = (body.get("title") or "").strip()
+            text = (body.get("body") or "").strip()
+            if not user_id or not (title or text):
+                self._reply(400, json.dumps({"error": "userId and a title or body are required"}),
+                            "application/json")
+                return
+            status, result = send_push(user_id, title, text)
             self._reply(status, json.dumps(result), "application/json")
             return
 

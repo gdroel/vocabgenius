@@ -251,9 +251,50 @@ async function selectCustomer(id) {
         <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
         <div class="meta">${events.length} event${events.length === 1 ? '' : 's'}</div>
       </div>
+      ${sendBox(id)}
       <div class="timeline">${rows}</div>`;
   } catch (e) {
     detail.innerHTML = '<div class="empty">Could not load customer.</div>';
+  }
+}
+
+function sendBox(id) {
+  return `<div class="card sendbox" style="margin-bottom:12px">
+    <div style="font-weight:600;margin-bottom:8px">Send push notification</div>
+    <input id="pushTitle" placeholder="Title" style="width:100%;margin-bottom:8px;padding:8px;
+           border-radius:6px;border:1px solid var(--border);background:#0d1117;color:var(--text)">
+    <textarea id="pushBody" placeholder="Message" rows="3" style="width:100%;margin-bottom:8px;padding:8px;
+           border-radius:6px;border:1px solid var(--border);background:#0d1117;color:var(--text);
+           font:inherit;resize:vertical"></textarea>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="primary" onclick="sendPush('${esc(id)}')">Send notification</button>
+      <span class="meta">opens the “hello there” screen</span>
+    </div>
+    <div id="pushResult" class="meta" style="margin-top:8px;white-space:pre-wrap"></div>
+  </div>`;
+}
+
+async function sendPush(id) {
+  const title = document.getElementById('pushTitle').value;
+  const body = document.getElementById('pushBody').value;
+  const out = document.getElementById('pushResult');
+  if (!title && !body) { out.textContent = 'Enter a title or message first.'; return; }
+  out.textContent = 'Sending…';
+  try {
+    const res = await fetch('/send-push', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: id, title, body }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      out.textContent = `✅ Delivered to ${data.sent}/${data.total} device(s).`;
+    } else {
+      out.textContent = '❌ ' + (data.error || 'Send failed') +
+        (data.results ? '\n' + JSON.stringify(data.results) : '') +
+        (data.detail ? '\n' + data.detail : '');
+    }
+  } catch (e) {
+    out.textContent = '❌ Could not reach the server: ' + e.message;
   }
 }
 
