@@ -6,4 +6,17 @@ services:
     rootDir: server
     buildCommand: pip install -r requirements.txt
     startCommand: python3 appstore_notification_listener.py
-    healthCheckPath: /
+    healthCheckPath: /healthz
+    envVars:
+      # App Store Connect API key for the "Request Test Notification" button.
+      # Set these in the Render dashboard (sync:false keeps them out of git).
+      - key: ASC_KEY_ID
+        sync: false
+      - key: ASC_ISSUER_ID
+        sync: false
+      - key: ASC_BUNDLE_ID
+        sync: false
+      - key: ASC_PRIVATE_KEY
+        sync: false
+      - key: ASC_ENVIRONMENT
+        value: Sandbox
