@@ -269,7 +269,9 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     if (!_wasPro && billing.isPro) {
       _wasPro = true;
-      if (mounted) Navigator.of(context).maybePop();
+      // Pop every pushed route (this screen + any paywall underneath) back to
+      // the root, which now renders the main app experience since isPro is true.
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
     if (mounted) setState(() {});
