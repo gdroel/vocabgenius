@@ -4,6 +4,7 @@ import 'package:posthog_flutter/posthog_flutter.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import '../onboarding/widgets.dart';
+import '../telemetry.dart';
 import '../user_profile.dart';
 import 'billing_service.dart';
 
@@ -30,6 +31,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    Telemetry.paywallReached();
     Posthog().isFeatureEnabled('hard-paywall').then((enabled) {
       if (!mounted) return;
       setState(() => _hardPaywall = enabled);

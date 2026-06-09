@@ -17,7 +17,7 @@
   }
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 18px 24px; border-bottom: 1px solid var(--border); background: var(--panel);
+    padding: 16px 24px 0; background: var(--panel);
   }
   header h1 { font-size: 16px; margin: 0; font-weight: 600; }
   header .spacer { flex: 1; }
@@ -28,12 +28,18 @@
   }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button:disabled { opacity: .55; cursor: default; }
-  #status { margin: 0 24px; padding: 10px 14px; border-radius: 6px; display: none;
+  .tabs { display: flex; gap: 4px; padding: 12px 24px 0; background: var(--panel);
+          border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 16px; cursor: pointer; border-bottom: 2px solid transparent;
+         color: var(--muted); font-weight: 600; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  #status { margin: 12px 24px 0; padding: 10px 14px; border-radius: 6px; display: none;
             font-size: 13px; white-space: pre-wrap; }
   #status.show { display: block; }
   #status.ok { background: #14301c; color: var(--good); }
   #status.err { background: #3a1d1d; color: #f85149; }
   main { padding: 16px 24px 60px; }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .empty { color: var(--muted); padding: 40px 0; text-align: center; }
   .card {
     border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
@@ -57,35 +63,85 @@
   }
   .grid div span { color: var(--muted); margin-right: 6px; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Customers */
+  .cust-layout { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; }
+  .cust-list { display: flex; flex-direction: column; gap: 8px; max-height: 75vh; overflow: auto; }
+  .cust-item {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+    padding: 10px 12px; cursor: pointer;
+  }
+  .cust-item.active { border-color: var(--accent); }
+  .cust-item .id { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cust-item .row { display: flex; gap: 10px; align-items: center; margin-top: 4px;
+                    color: var(--muted); font-size: 12px; }
+  .pill { background: #21262d; border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+  .timeline { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); padding: 8px 0; }
+  .tl-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+            border-bottom: 1px solid var(--border); }
+  .tl-row:last-child { border-bottom: 0; }
+  .tl-row .ico { font-size: 18px; }
+  .tl-row .lbl { font-weight: 600; }
+  .tl-row .when { margin-left: auto; color: var(--muted); font-size: 12px; }
+  @media (max-width: 720px) { .cust-layout { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>🛎️ App Store Server Notifications</h1>
-  <span class="meta" id="count">0 events</span>
+  <h1>🛎️ Vocab Genius events</h1>
   <div class="spacer"></div>
-  <label class="meta">show
-    <select id="filter" onchange="render(lastEvents)">
-      <option value="all">all</option>
-      <option value="Sandbox">sandbox</option>
-      <option value="Production">production</option>
-    </select>
-  </label>
   <button onclick="requestTest('Sandbox')" id="btnSandbox">Test · Sandbox</button>
   <button class="primary" onclick="requestTest('Production')" id="btnProd">Test · Production</button>
 </header>
+<div class="tabs">
+  <div class="tab active" id="tab-notifications" onclick="switchTab('notifications')">Notifications</div>
+  <div class="tab" id="tab-customers" onclick="switchTab('customers')">Customers</div>
+</div>
 <div id="status"></div>
+
 <main>
-  <div id="feed"><div class="empty">Waiting for notifications…</div></div>
+  <!-- Notifications -->
+  <section id="view-notifications">
+    <div class="toolbar">
+      <span class="meta" id="count">0 events</span>
+      <label class="meta">show
+        <select id="filter" onchange="renderNotifications(lastEvents)">
+          <option value="all">all</option>
+          <option value="Sandbox">sandbox</option>
+          <option value="Production">production</option>
+        </select>
+      </label>
+    </div>
+    <div id="feed"><div class="empty">Waiting for notifications…</div></div>
+  </section>
+
+  <!-- Customers -->
+  <section id="view-customers" style="display:none">
+    <div class="toolbar"><span class="meta" id="custCount">0 customers</span></div>
+    <div class="cust-layout">
+      <div class="cust-list" id="custList"><div class="empty">No customers yet…</div></div>
+      <div id="custDetail"><div class="empty">Select a customer to see their timeline.</div></div>
+    </div>
+  </section>
 </main>
 
 <script>
 const statusEl = document.getElementById('status');
-const feedEl = document.getElementById('feed');
-const countEl = document.getElementById('count');
-const filterEl = document.getElementById('filter');
 const buttons = [document.getElementById('btnSandbox'), document.getElementById('btnProd')];
 let lastEvents = [];
+let lastCustomers = [];
+let selectedCustomer = null;
+let activeTab = 'notifications';
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-notifications').classList.toggle('active', tab === 'notifications');
+  document.getElementById('tab-customers').classList.toggle('active', tab === 'customers');
+  document.getElementById('view-notifications').style.display = tab === 'notifications' ? '' : 'none';
+  document.getElementById('view-customers').style.display = tab === 'customers' ? '' : 'none';
+  poll();
+}
 
 function showStatus(msg, ok) {
   statusEl.textContent = msg;
@@ -100,10 +156,12 @@ async function requestTest(env) {
     const data = await res.json();
     if (res.ok) {
       showStatus('✅ Apple accepted the ' + env + ' request.\n' +
-                 'A TEST event should appear in the feed below within a few seconds.\n' +
+                 'A TEST event should appear in the Notifications feed within a few seconds.\n' +
                  'testNotificationToken: ' + (data.testNotificationToken || '(none)'), true);
     } else {
       showStatus('❌ ' + (data.error || 'Request failed') +
+                 (data.hint ? '\n' + data.hint : '') +
+                 (data.using ? '\nusing: ' + JSON.stringify(data.using) : '') +
                  (data.detail ? '\n' + data.detail : ''), false);
     }
   } catch (e) {
@@ -113,57 +171,103 @@ async function requestTest(env) {
   }
 }
 
+function esc(v) {
+  return String(v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function fmtTime(iso) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
+function envClass(env) {
+  return env === 'Sandbox' ? 'sandbox' : env === 'Production' ? 'production' : 'unknown';
+}
+
+/* ---- Notifications ---- */
 const ROWS = [
   ['product', 'product'], ['price', 'price'], ['expires', 'expires'],
   ['transactionId', 'txn'], ['originalTransactionId', 'orig txn'],
   ['autoRenew', 'auto-renew'], ['bundleId', 'bundle'], ['revokeReason', 'revoke reason'],
 ];
-
-function fmtTime(iso) {
-  try { return new Date(iso).toLocaleString(); } catch { return iso; }
-}
-
-function envClass(env) {
-  if (env === 'Sandbox') return 'sandbox';
-  if (env === 'Production') return 'production';
-  return 'unknown';
-}
-
-function render(events) {
+function renderNotifications(events) {
   lastEvents = events;
-  const want = filterEl.value;
+  const want = document.getElementById('filter').value;
   const shown = want === 'all' ? events : events.filter(e => e.environment === want);
-  countEl.textContent = shown.length + (shown.length === 1 ? ' event' : ' events') +
-                        (want === 'all' ? '' : ' · ' + want.toLowerCase());
-  if (!shown.length) {
-    feedEl.innerHTML = '<div class="empty">No matching notifications yet…</div>';
-    return;
-  }
-  feedEl.innerHTML = shown.map(e => {
+  document.getElementById('count').textContent =
+    shown.length + (shown.length === 1 ? ' event' : ' events') +
+    (want === 'all' ? '' : ' · ' + want.toLowerCase());
+  const feed = document.getElementById('feed');
+  if (!shown.length) { feed.innerHTML = '<div class="empty">No matching notifications yet…</div>'; return; }
+  feed.innerHTML = shown.map(e => {
     const fields = ROWS.filter(([k]) => e[k] !== null && e[k] !== undefined && e[k] !== '')
-      .map(([k, label]) => `<div><span>${label}</span><code>${escape(e[k])}</code></div>`).join('');
+      .map(([k, label]) => `<div><span>${label}</span><code>${esc(e[k])}</code></div>`).join('');
     const env = e.environment || 'Unknown';
     return `<div class="card">
       <div class="top">
-        <span class="badge ${envClass(env)}">${escape(env)}</span>
-        <span class="type">${e.icon || ''} ${escape(e.type)}</span>
-        ${e.subtype ? `<span class="sub">/ ${escape(e.subtype)}</span>` : ''}
+        <span class="badge ${envClass(env)}">${esc(env)}</span>
+        <span class="type">${e.icon || ''} ${esc(e.type)}</span>
+        ${e.subtype ? `<span class="sub">/ ${esc(e.subtype)}</span>` : ''}
         <span class="time">${fmtTime(e.received_at)}</span>
       </div>
-      ${e.note ? `<div class="note">→ ${escape(e.note)}</div>` : ''}
+      ${e.note ? `<div class="note">→ ${esc(e.note)}</div>` : ''}
       <div class="grid">${fields}</div>
     </div>`;
   }).join('');
 }
 
-function escape(v) {
-  return String(v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ---- Customers ---- */
+function renderCustomers(customers) {
+  lastCustomers = customers;
+  document.getElementById('custCount').textContent =
+    customers.length + (customers.length === 1 ? ' customer' : ' customers');
+  const list = document.getElementById('custList');
+  if (!customers.length) { list.innerHTML = '<div class="empty">No customers yet…</div>'; return; }
+  list.innerHTML = customers.map(c => {
+    const opened = c.counts.app_opened || 0;
+    const paywall = c.counts.paywall_reached || 0;
+    return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
+                 onclick="selectCustomer('${esc(c.userId)}')">
+      <div class="id">${esc(c.userId)}</div>
+      <div class="row">
+        <span class="pill">📱 ${opened}</span>
+        <span class="pill">💳 ${paywall}</span>
+        <span style="margin-left:auto">${c.lastSeen ? fmtTime(c.lastSeen) : ''}</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
+async function selectCustomer(id) {
+  selectedCustomer = id;
+  renderCustomers(lastCustomers); // refresh active highlight
+  const detail = document.getElementById('custDetail');
+  try {
+    const res = await fetch('/customer?id=' + encodeURIComponent(id));
+    const events = await res.json();
+    if (!events.length) { detail.innerHTML = '<div class="empty">No events for this customer.</div>'; return; }
+    const rows = events.slice().reverse().map(e => `
+      <div class="tl-row">
+        <span class="ico">${e.icon || '•'}</span>
+        <span class="lbl">${esc(e.label || e.event)}</span>
+        <span class="when">${fmtTime(e.received_at)}</span>
+      </div>`).join('');
+    detail.innerHTML = `<div class="card" style="margin-bottom:12px">
+        <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
+        <div class="meta">${events.length} event${events.length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="timeline">${rows}</div>`;
+  } catch (e) {
+    detail.innerHTML = '<div class="empty">Could not load customer.</div>';
+  }
+}
+
+/* ---- Polling ---- */
 async function poll() {
   try {
-    const res = await fetch('/events');
-    render(await res.json());
+    if (activeTab === 'notifications') {
+      const res = await fetch('/events');
+      renderNotifications(await res.json());
+    } else {
+      const res = await fetch('/customers');
+      renderCustomers(await res.json());
+      if (selectedCustomer) selectCustomer(selectedCustomer);
+    }
   } catch (e) { /* keep last render on transient errors */ }
 }
 

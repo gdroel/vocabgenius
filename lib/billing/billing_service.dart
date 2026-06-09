@@ -7,6 +7,8 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../telemetry.dart';
+
 // Public RevenueCat SDK key. Safe to ship in the binary — RC keys are public
 // by design and are scoped per-platform in the dashboard.
 const _revenueCatApiKey = 'appl_RPjmAwadUSDGppZlitlegDrWKAs';
@@ -50,6 +52,7 @@ class BillingService extends ChangeNotifier {
       );
       await Purchases.configure(PurchasesConfiguration(_revenueCatApiKey));
       _configured = true;
+      Telemetry.appOpened();
     } on PlatformException catch (e) {
       _lastError = e.message ?? 'RevenueCat configuration failed';
       notifyListeners();

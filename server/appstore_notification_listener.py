@@ -64,6 +64,17 @@ MAX_EVENTS = 200
 EVENTS = []
 EVENTS_LOCK = threading.Lock()
 
+# Client-side product events (app opened, paywall reached), keyed by the same
+# RevenueCat app_user_id the app uses. Lets the dashboard show a per-customer
+# timeline. In-memory only — clears on restart.
+MAX_PER_CUSTOMER = 100
+CLIENT_EVENTS = {}  # user_id -> [ {event, label, icon, received_at}, ... ]
+CLIENT_LOCK = threading.Lock()
+CLIENT_EVENT_TYPES = {
+    "app_opened": {"label": "Opened app", "icon": "📱"},
+    "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
+}
+
 APPLE_HOSTS = {
     "Sandbox": "https://api.storekit-sandbox.itunes.apple.com",
     "Production": "https://api.storekit.itunes.apple.com",
@@ -160,6 +171,46 @@ def store_event(summary):
     with EVENTS_LOCK:
         EVENTS.append(summary)
         del EVENTS[:-MAX_EVENTS]  # keep only the most recent MAX_EVENTS
+
+
+def store_client_event(user_id, event):
+    meta = CLIENT_EVENT_TYPES[event]
+    record = {
+        "event": event,
+        "label": meta["label"],
+        "icon": meta["icon"],
+        "received_at": datetime.now(tz=timezone.utc).isoformat(),
+    }
+    with CLIENT_LOCK:
+        events = CLIENT_EVENTS.setdefault(user_id, [])
+        events.append(record)
+        del events[:-MAX_PER_CUSTOMER]
+    print(f"{meta['icon']}  [client] {user_id}: {meta['label']}")
+    sys.stdout.flush()
+    return record
+
+
+def customers_summary():
+    """One row per customer: id, totals, per-event counts, last-seen time."""
+    rows = []
+    with CLIENT_LOCK:
+        for user_id, events in CLIENT_EVENTS.items():
+            counts = {}
+            for e in events:
+                counts[e["event"]] = counts.get(e["event"], 0) + 1
+            rows.append({
+                "userId": user_id,
+                "total": len(events),
+                "counts": counts,
+                "lastSeen": events[-1]["received_at"] if events else None,
+            })
+    rows.sort(key=lambda r: r["lastSeen"] or "", reverse=True)
+    return rows
+
+
+def customer_timeline(user_id):
+    with CLIENT_LOCK:
+        return list(CLIENT_EVENTS.get(user_id, []))  # chronological (oldest first)
 
 
 def log_summary(s):
@@ -274,6 +325,11 @@ class Handler(BaseHTTPRequestHandler):
             with EVENTS_LOCK:
                 payload = json.dumps(list(reversed(EVENTS))).encode()  # newest first
             self._reply(200, payload, "application/json")
+        elif self.path == "/customers":
+            self._reply(200, json.dumps(customers_summary()), "application/json")
+        elif self.path.split("?")[0] == "/customer":
+            user_id = parse_qs(urlparse(self.path).query).get("id", [""])[0]
+            self._reply(200, json.dumps(customer_timeline(user_id)), "application/json")
         elif self.path == "/healthz":
             self._reply(200, "ok")
         else:
@@ -285,6 +341,23 @@ class Handler(BaseHTTPRequestHandler):
             environment = query.get("env", ["Sandbox"])[0]
             status, result = request_apple_test_notification(environment)
             self._reply(status, json.dumps(result), "application/json")
+            return
+
+        if self.path == "/client-event":
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body = json.loads(raw)
+                event = body["event"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                self._reply(400, "bad client event")
+                return
+            if event not in CLIENT_EVENT_TYPES:
+                self._reply(400, json.dumps({"error": f"unknown event '{event}'"}), "application/json")
+                return
+            user_id = (body.get("userId") or "anonymous").strip() or "anonymous"
+            store_client_event(user_id, event)
+            self._reply(200, "ok")
             return
 
         if self.path != "/notifications":
