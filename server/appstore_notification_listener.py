@@ -73,6 +73,7 @@ CLIENT_EVENT_TYPES = {
     "app_opened": {"label": "Opened app", "icon": "📱"},
     "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
     "notification_screen": {"label": "Reached notification screen", "icon": "🔔"},
+    "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
 }
 
 

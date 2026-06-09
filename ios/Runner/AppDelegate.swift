@@ -20,6 +20,7 @@ import FBSDKCoreKit
   private var pushChannel: FlutterMethodChannel?
   private var pendingDeviceToken: String?
   private var pendingRoute: String?
+  private var pendingNotificationsEnabled = false
 
   override func application(
     _ application: UIApplication,
@@ -33,12 +34,21 @@ import FBSDKCoreKit
     // Become the notification delegate before any plugin claims it
     // (flutter_local_notifications only takes it while it's still nil), then
     // ask for permission and register for remote notifications.
-    UNUserNotificationCenter.current().delegate = self
-    UNUserNotificationCenter.current().requestAuthorization(
-      options: [.alert, .badge, .sound]
-    ) { granted, _ in
-      if granted {
+    let center = UNUserNotificationCenter.current()
+    center.delegate = self
+    center.getNotificationSettings { settings in
+      // Only a notDetermined -> authorized transition is a genuine "just
+      // enabled" moment; an already-authorized relaunch shouldn't re-fire.
+      let wasUndetermined = settings.authorizationStatus == .notDetermined
+      center.requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, _ in
+        guard granted else { return }
         DispatchQueue.main.async { application.registerForRemoteNotifications() }
+        if wasUndetermined {
+          DispatchQueue.main.async {
+            self?.pendingNotificationsEnabled = true
+            self?.flushNotificationsEnabled()
+          }
+        }
       }
     }
 
@@ -89,6 +99,13 @@ import FBSDKCoreKit
       application,
       didFailToRegisterForRemoteNotificationsWithError: error
     )
+  }
+
+  // Deliver the "notifications enabled" signal once the channel exists.
+  private func flushNotificationsEnabled() {
+    guard pendingNotificationsEnabled, let channel = pushChannel else { return }
+    channel.invokeMethod("onNotificationsEnabled", arguments: nil)
+    pendingNotificationsEnabled = false
   }
 
   // MARK: - UNUserNotificationCenterDelegate
@@ -194,5 +211,6 @@ import FBSDKCoreKit
       }
     }
     pushChannel = push
+    flushNotificationsEnabled()
   }
 }

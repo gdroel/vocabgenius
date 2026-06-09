@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'billing/billing_service.dart';
 import 'billing/paywall_screen.dart';
+import 'telemetry.dart';
 
 /// Bridges native APNs push to Flutter:
 ///   - receives the device token from iOS and registers it on the server
@@ -25,6 +26,7 @@ class PushService {
   static const MethodChannel _channel = MethodChannel('professor_pip/push');
 
   String? _pendingToken;
+  bool _notifiedEnabled = false;
 
   Future<void> init() async {
     _channel.setMethodCallHandler(_onNativeCall);
@@ -51,6 +53,12 @@ class PushService {
         break;
       case 'onNotificationTap':
         _navigate(call.arguments as String? ?? 'hello');
+        break;
+      case 'onNotificationsEnabled':
+        if (!_notifiedEnabled) {
+          _notifiedEnabled = true;
+          Telemetry.notificationsEnabled();
+        }
         break;
     }
     return null;

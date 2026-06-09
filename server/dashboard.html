@@ -222,6 +222,7 @@ function renderCustomers(customers) {
     const opened = c.counts.app_opened || 0;
     const paywall = c.counts.paywall_reached || 0;
     const notif = c.counts.notification_screen || 0;
+    const enabled = c.counts.notifications_enabled || 0;
     return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
                  onclick="selectCustomer('${esc(c.userId)}')">
       <div class="id">${esc(c.userId)}</div>
@@ -229,6 +230,7 @@ function renderCustomers(customers) {
         <span class="pill">📱 ${opened}</span>
         <span class="pill">💳 ${paywall}</span>
         <span class="pill">🔔 ${notif}</span>
+        <span class="pill">✅ ${enabled}</span>
         <span style="margin-left:auto">${c.lastSeen ? fmtTime(c.lastSeen) : ''}</span>
       </div>
     </div>`;

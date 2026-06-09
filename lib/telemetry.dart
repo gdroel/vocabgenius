@@ -22,6 +22,9 @@ class Telemetry {
   /// The user reached the notification screen (tapped a push).
   static void notificationScreen() => _send('notification_screen');
 
+  /// The user granted notification permission (first allow).
+  static void notificationsEnabled() => _send('notifications_enabled');
+
   static Future<void> _send(String event) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.
