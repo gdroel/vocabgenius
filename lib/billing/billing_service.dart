@@ -26,6 +26,26 @@ class BillingService extends ChangeNotifier {
   Offering? _currentOffering;
   String? _lastError;
 
+  // Set once RevenueCat is configured. Reading the app user id before this is
+  // true triggers a NON-catchable native fatal error in the SDK, so telemetry
+  // and push must gate on it.
+  static bool _revenueCatConfigured = false;
+
+  /// Invoked once, right after RevenueCat is configured. PushService hooks
+  /// this to register its device token under the real app user id.
+  static VoidCallback? onRevenueCatConfigured;
+
+  /// The RevenueCat app user id, or null if the SDK isn't configured yet.
+  /// Never throws and never crashes the SDK.
+  static Future<String?> currentAppUserId() async {
+    if (!_revenueCatConfigured) return null;
+    try {
+      return await Purchases.appUserID;
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool get isPro => _isPro;
   bool get storeAvailable => _configured && _currentOffering != null;
   Offering? get currentOffering => _currentOffering;
@@ -52,7 +72,9 @@ class BillingService extends ChangeNotifier {
       );
       await Purchases.configure(PurchasesConfiguration(_revenueCatApiKey));
       _configured = true;
+      _revenueCatConfigured = true;
       Telemetry.appOpened();
+      onRevenueCatConfigured?.call();
     } on PlatformException catch (e) {
       _lastError = e.message ?? 'RevenueCat configuration failed';
       notifyListeners();

@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
 
+import 'billing/billing_service.dart';
 import 'hello_there_screen.dart';
 
 /// Bridges native APNs push to Flutter:
@@ -24,13 +24,18 @@ class PushService {
   static const String _baseUrl = 'https://vocabgenius-vx2s.onrender.com';
   static const MethodChannel _channel = MethodChannel('professor_pip/push');
 
+  String? _pendingToken;
+
   Future<void> init() async {
     _channel.setMethodCallHandler(_onNativeCall);
+    // When RevenueCat finishes configuring, register any token we're holding
+    // under the now-available app user id.
+    BillingService.onRevenueCatConfigured = _registerPending;
     // Pull anything that arrived before the handler was attached: a device
     // token already issued, and a route if the app was cold-started by a tap.
     try {
       final token = await _channel.invokeMethod<String>('getDeviceToken');
-      if (token != null && token.isNotEmpty) _registerDevice(token);
+      if (token != null && token.isNotEmpty) _onToken(token);
     } catch (_) {}
     try {
       final route = await _channel.invokeMethod<String>('getInitialRoute');
@@ -42,13 +47,18 @@ class PushService {
     switch (call.method) {
       case 'onToken':
         final token = call.arguments as String?;
-        if (token != null && token.isNotEmpty) _registerDevice(token);
+        if (token != null && token.isNotEmpty) _onToken(token);
         break;
       case 'onNotificationTap':
         _navigate(call.arguments as String? ?? 'hello');
         break;
     }
     return null;
+  }
+
+  void _onToken(String token) {
+    _pendingToken = token;
+    _registerPending();
   }
 
   void _navigate(String route) {
@@ -58,18 +68,21 @@ class PushService {
     );
   }
 
-  Future<void> _registerDevice(String deviceToken) async {
-    String? userId;
-    try {
-      userId = await Purchases.appUserID;
-    } catch (_) {}
+  /// Register the held device token, but only once we have a real app user id.
+  /// If RevenueCat isn't configured yet this is a no-op; it runs again from the
+  /// onRevenueCatConfigured hook.
+  Future<void> _registerPending() async {
+    final token = _pendingToken;
+    if (token == null) return;
+    final userId = await BillingService.currentAppUserId();
+    if (userId == null) return; // not configured yet — retry on configure
     try {
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 5);
       final request =
           await client.postUrl(Uri.parse('$_baseUrl/register-device'));
       request.headers.contentType = ContentType.json;
-      request.write(jsonEncode({'userId': userId, 'deviceToken': deviceToken}));
+      request.write(jsonEncode({'userId': userId, 'deviceToken': token}));
       final response = await request.close();
       await response.drain<void>();
       client.close();

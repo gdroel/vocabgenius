@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:purchases_flutter/purchases_flutter.dart';
+import 'billing/billing_service.dart';
 
 /// Fire-and-forget product telemetry to the pipserver dashboard.
 ///
@@ -23,13 +23,9 @@ class Telemetry {
   static void notificationScreen() => _send('notification_screen');
 
   static Future<void> _send(String event) async {
-    String? userId;
-    try {
-      userId = await Purchases.appUserID;
-    } catch (_) {
-      // RevenueCat not configured yet — send without an id; the server
-      // records it under "anonymous".
-    }
+    // Safe even before RevenueCat is configured: returns null rather than
+    // crashing the SDK. A null id is recorded as "anonymous" server-side.
+    final userId = await BillingService.currentAppUserId();
     try {
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 5);
