@@ -14,7 +14,5 @@ services:
         sync: false
       - key: ASC_ISSUER_ID
         sync: false
-      - key: ASC_BUNDLE_ID
-        sync: false
       - key: ASC_PRIVATE_KEY
         sync: false

@@ -30,8 +30,8 @@ Each event is tagged with Apple's own data.environment ("Sandbox"/"Production").
 Credentials for the "request test" button (set as env vars / Render secrets):
     ASC_KEY_ID        App Store Connect API key ID
     ASC_ISSUER_ID     App Store Connect issuer ID
-    ASC_BUNDLE_ID     app bundle id (e.g. com.vocabgenius.app)
     ASC_PRIVATE_KEY   contents of the .p8 private key (PEM, multi-line)
+    ASC_BUNDLE_ID     optional override; defaults to com.gaberoeloffs.vocabGenius
 The test button chooses Sandbox vs Production per request (same key works for both).
 """
 
@@ -191,12 +191,13 @@ def request_apple_test_notification(environment="Sandbox"):
 
     key_id = os.environ.get("ASC_KEY_ID")
     issuer_id = os.environ.get("ASC_ISSUER_ID")
-    bundle_id = os.environ.get("ASC_BUNDLE_ID")
+    # Bundle id is hardcoded (env var optional, only to override).
+    bundle_id = os.environ.get("ASC_BUNDLE_ID", "com.gaberoeloffs.vocabGenius")
     private_key = os.environ.get("ASC_PRIVATE_KEY")
 
     missing = [name for name, val in [
         ("ASC_KEY_ID", key_id), ("ASC_ISSUER_ID", issuer_id),
-        ("ASC_BUNDLE_ID", bundle_id), ("ASC_PRIVATE_KEY", private_key),
+        ("ASC_PRIVATE_KEY", private_key),
     ] if not val]
     if missing:
         return 400, {"error": f"Missing credentials: {', '.join(missing)}. Set them as env vars on the server."}
