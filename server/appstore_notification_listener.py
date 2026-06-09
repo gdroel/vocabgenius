@@ -74,6 +74,8 @@ CLIENT_EVENT_TYPES = {
     "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
     "notification_screen": {"label": "Reached notification screen", "icon": "🔔"},
     "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
+    "annual_trial_started": {"label": "Started annual trial", "icon": "🎁"},
+    "monthly_started": {"label": "Started monthly plan", "icon": "⭐"},
 }
 
 
@@ -380,6 +382,22 @@ def send_push(user_id, title, body):
     sent = sum(1 for r in results if r and r.get("ok"))
     print(f"📤 push to {user_id}: {sent}/{len(tokens)} delivered — {results}")
     sys.stdout.flush()
+
+    # Record the send (with its copy) on the customer's timeline.
+    if sent:
+        text = " — ".join(p for p in [title, body] if p)
+        record = {
+            "event": "notification_sent",
+            "label": f"Sent: {text}" if text else "Notification sent",
+            "icon": "📤",
+            "received_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        db_exec(
+            "INSERT INTO client_events(received_at, user_id, event, data) VALUES(%s, %s, %s, %s)",
+            (record["received_at"], user_id, "notification_sent",
+             psycopg2.extras.Json(record)),
+        )
+
     return (200 if sent else 502), {"sent": sent, "total": len(tokens), "results": results}
 
 

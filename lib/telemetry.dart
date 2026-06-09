@@ -25,6 +25,12 @@ class Telemetry {
   /// The user granted notification permission (first allow).
   static void notificationsEnabled() => _send('notifications_enabled');
 
+  /// The user started the annual free trial.
+  static void annualTrialStarted() => _send('annual_trial_started');
+
+  /// The user started the monthly plan (from the notification paywall).
+  static void monthlyStarted() => _send('monthly_started');
+
   static Future<void> _send(String event) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.

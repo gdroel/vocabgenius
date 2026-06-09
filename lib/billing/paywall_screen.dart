@@ -71,7 +71,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      await billing.buyAnnual();
+      final ok = await billing.buyAnnual();
+      if (ok) Telemetry.annualTrialStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -279,7 +280,8 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      await billing.buyPipMonthly();
+      final ok = await billing.buyPipMonthly();
+      if (ok) Telemetry.monthlyStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -344,9 +346,24 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
               const SizedBox(height: 14),
               Expanded(
                 child: Center(
-                  child: Image.asset(
-                    'assets/lockscreen.png',
-                    fit: BoxFit.contain,
+                  child: AspectRatio(
+                    aspectRatio: 1419 / 1046, // matches assets/lockscreen.png
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned.fill(
+                          child: Image.asset(
+                            'assets/lockscreen.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const Positioned(
+                          top: -6,
+                          right: -6,
+                          child: _DiscountBadge(),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -388,6 +405,55 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscountBadge extends StatelessWidget {
+  const _DiscountBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: 0.18,
+      child: Container(
+        width: 88,
+        height: 88,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.success,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Brutal.borderColor,
+            width: Brutal.borderWidth,
+          ),
+          boxShadow: Brutal.shadow(dx: 2, dy: 3),
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '50%',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                height: 1.0,
+              ),
+            ),
+            Text(
+              'OFF',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
+                height: 1.1,
+              ),
+            ),
+          ],
         ),
       ),
     );
