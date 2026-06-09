@@ -8,6 +8,10 @@ services:
     startCommand: python3 appstore_notification_listener.py
     healthCheckPath: /healthz
     envVars:
+      # Render Postgres connection string. Paste the database's Internal
+      # Database URL here (Render dashboard -> service -> Environment).
+      - key: DATABASE_URL
+        sync: false
       # App Store Connect API key for the "Request Test Notification" button.
       # Set these in the Render dashboard (sync:false keeps them out of git).
       - key: ASC_KEY_ID

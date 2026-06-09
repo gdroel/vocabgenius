@@ -48,6 +48,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import psycopg2
+import psycopg2.extras
+
 # PyJWT is only needed for the "request test notification" button. Keep the
 # import soft so the listener still runs (and logs) even if it's missing.
 try:
@@ -58,22 +61,62 @@ except ImportError:  # pragma: no cover
 PORT = int(os.environ.get("PORT", "8080"))
 DASHBOARD_FILE = Path(__file__).with_name("dashboard.html")
 
-# Shared, in-memory ring of recent events — every dashboard viewer sees the
-# same feed. Capped so a long-running instance doesn't grow unbounded.
-MAX_EVENTS = 200
-EVENTS = []
-EVENTS_LOCK = threading.Lock()
+# Events persist in Postgres (Render Postgres) so they survive deploys and
+# restarts. DATABASE_URL is injected by Render.
+MAX_EVENTS = 200  # most-recent notifications shown in the feed
+DATABASE_URL = os.environ.get("DATABASE_URL")
+DB_LOCK = threading.Lock()
+_CONN = None
 
-# Client-side product events (app opened, paywall reached), keyed by the same
-# RevenueCat app_user_id the app uses. Lets the dashboard show a per-customer
-# timeline. In-memory only — clears on restart.
-MAX_PER_CUSTOMER = 100
-CLIENT_EVENTS = {}  # user_id -> [ {event, label, icon, received_at}, ... ]
-CLIENT_LOCK = threading.Lock()
 CLIENT_EVENT_TYPES = {
     "app_opened": {"label": "Opened app", "icon": "📱"},
     "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
 }
+
+
+def db_exec(query, params=(), fetch=None):
+    """Run a query with a lazily-opened, auto-reconnecting connection.
+
+    fetch="all"/"one" returns rows (as dicts); otherwise None. A single
+    connection guarded by DB_LOCK is plenty for this low volume, and we
+    reconnect once if Postgres dropped the idle connection.
+    """
+    global _CONN
+    with DB_LOCK:
+        for attempt in range(2):
+            try:
+                if _CONN is None or _CONN.closed:
+                    _CONN = psycopg2.connect(DATABASE_URL)
+                    _CONN.autocommit = True
+                with _CONN.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    cur.execute(query, params)
+                    if fetch == "all":
+                        return cur.fetchall()
+                    if fetch == "one":
+                        return cur.fetchone()
+                    return None
+            except psycopg2.OperationalError:
+                _CONN = None  # force reconnect on the retry
+                if attempt == 1:
+                    raise
+
+
+def init_db():
+    db_exec(
+        """CREATE TABLE IF NOT EXISTS notifications(
+               id BIGSERIAL PRIMARY KEY,
+               received_at TEXT NOT NULL,
+               data JSONB NOT NULL)"""
+    )
+    db_exec(
+        """CREATE TABLE IF NOT EXISTS client_events(
+               id BIGSERIAL PRIMARY KEY,
+               received_at TEXT NOT NULL,
+               user_id TEXT NOT NULL,
+               event TEXT NOT NULL,
+               data JSONB NOT NULL)"""
+    )
+    db_exec("CREATE INDEX IF NOT EXISTS idx_client_user ON client_events(user_id)")
 
 APPLE_HOSTS = {
     "Sandbox": "https://api.storekit-sandbox.itunes.apple.com",
@@ -168,9 +211,18 @@ def summarize(payload):
 
 
 def store_event(summary):
-    with EVENTS_LOCK:
-        EVENTS.append(summary)
-        del EVENTS[:-MAX_EVENTS]  # keep only the most recent MAX_EVENTS
+    db_exec(
+        "INSERT INTO notifications(received_at, data) VALUES(%s, %s)",
+        (summary["received_at"], psycopg2.extras.Json(summary)),
+    )
+
+
+def recent_notifications():
+    rows = db_exec(
+        "SELECT data FROM notifications ORDER BY id DESC LIMIT %s",
+        (MAX_EVENTS,), fetch="all",
+    )
+    return [r["data"] for r in rows]  # newest first; jsonb decodes to dict
 
 
 def store_client_event(user_id, event):
@@ -181,10 +233,10 @@ def store_client_event(user_id, event):
         "icon": meta["icon"],
         "received_at": datetime.now(tz=timezone.utc).isoformat(),
     }
-    with CLIENT_LOCK:
-        events = CLIENT_EVENTS.setdefault(user_id, [])
-        events.append(record)
-        del events[:-MAX_PER_CUSTOMER]
+    db_exec(
+        "INSERT INTO client_events(received_at, user_id, event, data) VALUES(%s, %s, %s, %s)",
+        (record["received_at"], user_id, event, psycopg2.extras.Json(record)),
+    )
     print(f"{meta['icon']}  [client] {user_id}: {meta['label']}")
     sys.stdout.flush()
     return record
@@ -192,25 +244,32 @@ def store_client_event(user_id, event):
 
 def customers_summary():
     """One row per customer: id, totals, per-event counts, last-seen time."""
-    rows = []
-    with CLIENT_LOCK:
-        for user_id, events in CLIENT_EVENTS.items():
-            counts = {}
-            for e in events:
-                counts[e["event"]] = counts.get(e["event"], 0) + 1
-            rows.append({
-                "userId": user_id,
-                "total": len(events),
-                "counts": counts,
-                "lastSeen": events[-1]["received_at"] if events else None,
-            })
-    rows.sort(key=lambda r: r["lastSeen"] or "", reverse=True)
-    return rows
+    rows = db_exec(
+        "SELECT user_id, event, COUNT(*) AS n, MAX(received_at) AS last "
+        "FROM client_events GROUP BY user_id, event",
+        fetch="all",
+    )
+    customers = {}
+    for r in rows:
+        c = customers.setdefault(
+            r["user_id"],
+            {"userId": r["user_id"], "total": 0, "counts": {}, "lastSeen": None},
+        )
+        c["counts"][r["event"]] = r["n"]
+        c["total"] += r["n"]
+        if c["lastSeen"] is None or r["last"] > c["lastSeen"]:
+            c["lastSeen"] = r["last"]
+    result = list(customers.values())
+    result.sort(key=lambda x: x["lastSeen"] or "", reverse=True)
+    return result
 
 
 def customer_timeline(user_id):
-    with CLIENT_LOCK:
-        return list(CLIENT_EVENTS.get(user_id, []))  # chronological (oldest first)
+    rows = db_exec(
+        "SELECT data FROM client_events WHERE user_id=%s ORDER BY id ASC LIMIT 1000",
+        (user_id,), fetch="all",
+    )
+    return [r["data"] for r in rows]  # chronological (oldest first)
 
 
 def log_summary(s):
@@ -322,9 +381,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._reply(200, html, "text/html; charset=utf-8")
         elif self.path == "/events":
-            with EVENTS_LOCK:
-                payload = json.dumps(list(reversed(EVENTS))).encode()  # newest first
-            self._reply(200, payload, "application/json")
+            self._reply(200, json.dumps(recent_notifications()), "application/json")
         elif self.path == "/customers":
             self._reply(200, json.dumps(customers_summary()), "application/json")
         elif self.path.split("?")[0] == "/customer":
@@ -385,6 +442,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if not DATABASE_URL:
+        sys.exit("DATABASE_URL is not set — create a Render Postgres and link it.")
+    init_db()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     creds = "configured" if os.environ.get("ASC_PRIVATE_KEY") else "NOT configured"
     print(f"▶ App Store Notifications V2 listener + dashboard on http://0.0.0.0:{PORT}")

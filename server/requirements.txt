@@ -1,5 +1,6 @@
-# The notification listener itself is stdlib-only. PyJWT + cryptography are
-# needed to sign the App Store Connect API token for the "Request Test
-# Notification" dashboard button.
+# PyJWT + cryptography sign the App Store Connect API token for the "Request
+# Test Notification" button. psycopg2 talks to Render Postgres, where events
+# persist across deploys.
 PyJWT==2.10.1
 cryptography==44.0.0
+psycopg2-binary==2.9.10
