@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import UserNotifications
 import WidgetKit
+import StoreKit
 import FBSDKCoreKit
 
 @main
@@ -170,6 +171,15 @@ import FBSDKCoreKit
         defaults?.set(count, forKey: AppDelegate.wordsPerDayKey)
         if #available(iOS 14.0, *) {
           WidgetCenter.shared.reloadAllTimelines()
+        }
+        result(nil)
+      case "requestAppReview":
+        // System decides whether to actually surface the prompt (rate-limited
+        // by Apple to a few times a year); calling it is always safe.
+        if let scene = UIApplication.shared.connectedScenes
+          .first(where: { $0.activationState == .foregroundActive })
+          as? UIWindowScene {
+          SKStoreReviewController.requestReview(in: scene)
         }
         result(nil)
       default:

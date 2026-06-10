@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
+import '../../app_review.dart';
 import '../../billing/paywall_screen.dart';
 import '../../notifications/notifications_service.dart';
 import '../../push_service.dart';
@@ -666,7 +667,15 @@ class Step04bLockscreenIntro extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            PrimaryButton(label: 'Continue', onPressed: cb.next),
+            PrimaryButton(
+              label: 'Continue',
+              onPressed: () {
+                // Prompt for an App Store review as the user leaves the
+                // lockscreen page (iOS decides whether to actually show it).
+                AppReview.request();
+                cb.next();
+              },
+            ),
           ],
         ),
       ),
