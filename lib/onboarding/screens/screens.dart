@@ -730,14 +730,14 @@ class _Step04cWordOfDayNotificationState
             Expanded(
               child: Center(
                 child: Image.asset(
-                  'assets/lockscreen.png',
+                  'assets/wordoftheday.png',
                   fit: BoxFit.contain,
                 ),
               ),
             ),
             const SizedBox(height: 16),
             PrimaryButton(
-              label: _busy ? 'Turning on…' : 'Turn on notifications',
+              label: _busy ? 'Turning on…' : 'Get word of the day',
               onPressed: _busy ? null : _enable,
               enabled: !_busy,
             ),
