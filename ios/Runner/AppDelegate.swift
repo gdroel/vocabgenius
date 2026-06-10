@@ -20,7 +20,6 @@ import FBSDKCoreKit
   private var pushChannel: FlutterMethodChannel?
   private var pendingDeviceToken: String?
   private var pendingRoute: String?
-  private var pendingNotificationsEnabled = false
 
   override func application(
     _ application: UIApplication,
@@ -32,23 +31,15 @@ import FBSDKCoreKit
     )
 
     // Become the notification delegate before any plugin claims it
-    // (flutter_local_notifications only takes it while it's still nil), then
-    // ask for permission and register for remote notifications.
+    // (flutter_local_notifications only takes it while it's still nil). We do
+    // NOT prompt for permission at launch — onboarding asks for it on the
+    // "word of the day" screen. If the user has already granted it on a prior
+    // launch, refresh the APNs token so server pushes keep working.
     let center = UNUserNotificationCenter.current()
     center.delegate = self
     center.getNotificationSettings { settings in
-      // Only a notDetermined -> authorized transition is a genuine "just
-      // enabled" moment; an already-authorized relaunch shouldn't re-fire.
-      let wasUndetermined = settings.authorizationStatus == .notDetermined
-      center.requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, _ in
-        guard granted else { return }
+      if settings.authorizationStatus == .authorized {
         DispatchQueue.main.async { application.registerForRemoteNotifications() }
-        if wasUndetermined {
-          DispatchQueue.main.async {
-            self?.pendingNotificationsEnabled = true
-            self?.flushNotificationsEnabled()
-          }
-        }
       }
     }
 
@@ -101,12 +92,6 @@ import FBSDKCoreKit
     )
   }
 
-  // Deliver the "notifications enabled" signal once the channel exists.
-  private func flushNotificationsEnabled() {
-    guard pendingNotificationsEnabled, let channel = pushChannel else { return }
-    channel.invokeMethod("onNotificationsEnabled", arguments: nil)
-    pendingNotificationsEnabled = false
-  }
 
   // MARK: - UNUserNotificationCenterDelegate
 
@@ -206,11 +191,17 @@ import FBSDKCoreKit
         let route = self?.pendingRoute
         self?.pendingRoute = nil
         result(route)
+      case "registerForRemoteNotifications":
+        // The user just granted notification permission in onboarding; pull an
+        // APNs token now so server-driven "word of the day" pushes can deliver.
+        DispatchQueue.main.async {
+          UIApplication.shared.registerForRemoteNotifications()
+        }
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
     pushChannel = push
-    flushNotificationsEnabled()
   }
 }

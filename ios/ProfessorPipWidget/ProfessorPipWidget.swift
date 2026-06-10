@@ -6,7 +6,7 @@ private let followedTopicsKey = "followedTopics"
 private let lastWordKey = "lastWord"
 private let proStatusKey = "proStatus"
 private let wordsPerDayKey = "wordsPerDay"
-private let defaultWordsPerDay = 12
+private let defaultWordsPerDay = 24
 private let maxWordsPerDay = 48
 
 private func isProUser() -> Bool {

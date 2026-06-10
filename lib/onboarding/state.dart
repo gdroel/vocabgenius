@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 class OnboardingData extends ChangeNotifier {
-  String? gender;
   String name = '';
   bool dailyRoutine = true;
   bool notificationsEnabled = true;
-  int notificationsPerDay = 10;
-  int wordsPerDay = 12;
+  int notificationsPerDay = 1;
   TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
   TimeOfDay endTime = const TimeOfDay(hour: 22, minute: 0);
   String theme = 'light';

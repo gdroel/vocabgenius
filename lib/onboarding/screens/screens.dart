@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../billing/paywall_screen.dart';
+import '../../notifications/notifications_service.dart';
+import '../../push_service.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
 import '../../user_profile.dart';
-import '../../widget_preferences.dart';
 import '../flow.dart';
 import '../state.dart';
 import '../theme.dart';
@@ -531,20 +531,6 @@ class Step02TailorIntro extends StatelessWidget {
   );
 }
 
-// 3. Gender
-class Step03Gender extends StatelessWidget {
-  final StepCallbacks cb;
-  const Step03Gender({super.key, required this.cb});
-  @override
-  Widget build(BuildContext context) => _SingleChoiceScreen(
-    cb: cb,
-    title: 'Which option represents\nyou best?',
-    options: const ['Female', 'Male', 'Other', 'Prefer not to say'],
-    read: (d) => d.gender,
-    write: (d, v) => d.gender = v,
-  );
-}
-
 // 4. Name
 class Step04Name extends StatefulWidget {
   final StepCallbacks cb;
@@ -688,46 +674,60 @@ class Step04bLockscreenIntro extends StatelessWidget {
   }
 }
 
-// 4c. Words per day
-class Step04cWordsPerDay extends StatelessWidget {
+// 4c. Word of the day notification opt-in
+class Step04cWordOfDayNotification extends StatefulWidget {
   final StepCallbacks cb;
-  const Step04cWordsPerDay({super.key, required this.cb});
+  const Step04cWordOfDayNotification({super.key, required this.cb});
+
+  @override
+  State<Step04cWordOfDayNotification> createState() =>
+      _Step04cWordOfDayNotificationState();
+}
+
+class _Step04cWordOfDayNotificationState
+    extends State<Step04cWordOfDayNotification> {
+  bool _busy = false;
+
+  Future<void> _enable() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final data = OnboardingScope.of(context);
+    bool granted;
+    try {
+      granted = await NotificationsService.instance.requestIosPermission();
+    } catch (_) {
+      granted = false;
+    }
+    if (granted) PushService.instance.onNotificationsGranted();
+    if (!mounted) return;
+    data.update(() => data.notificationsEnabled = granted);
+    widget.cb.next();
+  }
+
+  void _skip() {
+    final data = OnboardingScope.of(context);
+    data.update(() => data.notificationsEnabled = false);
+    widget.cb.next();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final data = OnboardingScope.of(context);
-    final name = data.name.trim();
-    final line = name.isEmpty
-        ? 'How many words do you want to learn per day?'
-        : 'Hey $name, how many words do you want to learn per day?';
     return OnboardingScaffold(
-      progress: cb.progress,
-      onBack: cb.back,
+      progress: widget.cb.progress,
+      onBack: widget.cb.back,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 8),
-            _PipIntroBubble(
-              key: ValueKey(line),
-              lines: [line],
+            const SizedBox(height: 12),
+            const TitleHeader(
+              title: 'Get a Personalized Word\nof the Day Notification',
+              subtitle: 'One notification a day. No spam, ever.',
+              fitTitle: true,
             ),
+            const SizedBox(height: 16),
             Expanded(
-              child: Center(
-                child: _WordsPerDayPicker(
-                  value: data.wordsPerDay,
-                  min: WidgetPreferences.minWordsPerDay,
-                  max: WidgetPreferences.maxWordsPerDay,
-                  onChanged: (v) {
-                    data.update(() => data.wordsPerDay = v);
-                    WidgetPreferences.setWordsPerDay(v);
-                  },
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 220,
               child: Center(
                 child: Image.asset(
                   'assets/lockscreen.png',
@@ -736,142 +736,30 @@ class Step04cWordsPerDay extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            PrimaryButton(label: 'Continue', onPressed: cb.next),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WordsPerDayPicker extends StatefulWidget {
-  final int value;
-  final int min;
-  final int max;
-  final ValueChanged<int> onChanged;
-  const _WordsPerDayPicker({
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-
-  @override
-  State<_WordsPerDayPicker> createState() => _WordsPerDayPickerState();
-}
-
-class _WordsPerDayPickerState extends State<_WordsPerDayPicker> {
-  Timer? _holdTimer;
-
-  void _bump(int delta) {
-    final next = widget.value + delta;
-    if (next < widget.min || next > widget.max) {
-      _stopHold();
-      return;
-    }
-    HapticFeedback.selectionClick();
-    widget.onChanged(next);
-  }
-
-  void _startHold(int delta) {
-    _bump(delta);
-    _holdTimer?.cancel();
-    _holdTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      _bump(delta);
-    });
-  }
-
-  void _stopHold() {
-    _holdTimer?.cancel();
-    _holdTimer = null;
-  }
-
-  @override
-  void dispose() {
-    _holdTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final canDecrement = widget.value > widget.min;
-    final canIncrement = widget.value < widget.max;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        _StepperButton(
-          icon: Icons.remove_rounded,
-          enabled: canDecrement,
-          onTap: () => _bump(-1),
-          onHoldStart: () => _startHold(-1),
-          onHoldEnd: _stopHold,
-        ),
-        SizedBox(
-          width: 180,
-          child: Text(
-            '${widget.value}',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.dmSerifDisplay(
-              color: AppColors.ink,
-              fontSize: 128,
-              height: 1,
+            PrimaryButton(
+              label: _busy ? 'Turning on…' : 'Turn on notifications',
+              onPressed: _busy ? null : _enable,
+              enabled: !_busy,
             ),
-          ),
-        ),
-        _StepperButton(
-          icon: Icons.add_rounded,
-          enabled: canIncrement,
-          onTap: () => _bump(1),
-          onHoldStart: () => _startHold(1),
-          onHoldEnd: _stopHold,
-        ),
-      ],
-    );
-  }
-}
-
-class _StepperButton extends StatelessWidget {
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback onTap;
-  final VoidCallback onHoldStart;
-  final VoidCallback onHoldEnd;
-  const _StepperButton({
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
-    required this.onHoldStart,
-    required this.onHoldEnd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: enabled ? onTap : null,
-      onLongPressStart: enabled ? (_) => onHoldStart() : null,
-      onLongPressEnd: (_) => onHoldEnd(),
-      onLongPressCancel: onHoldEnd,
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Brutal.borderColor,
-            width: Brutal.borderWidth,
-          ),
-          boxShadow: Brutal.shadow(dx: 3, dy: 4),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          icon,
-          size: 28,
-          color: enabled
-              ? AppColors.ink
-              : AppColors.muted.withValues(alpha: 0.4),
+            const SizedBox(height: 14),
+            Center(
+              child: GestureDetector(
+                onTap: _busy ? null : _skip,
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+                  child: Text(
+                    'Maybe later',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

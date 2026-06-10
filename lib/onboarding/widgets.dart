@@ -294,25 +294,40 @@ class TitleHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final TextAlign align;
+  /// When true the title scales down to fit the available width so its manual
+  /// line breaks are preserved instead of wrapping onto extra lines. Use for
+  /// long titles that would otherwise spill past two lines.
+  final bool fitTitle;
   const TitleHeader({
     super.key,
     required this.title,
     this.subtitle,
     this.align = TextAlign.center,
+    this.fitTitle = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget titleText = Text(
+      title,
+      textAlign: align,
+      style: Theme.of(context).textTheme.headlineMedium,
+    );
+    if (fitTitle) {
+      titleText = FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: align == TextAlign.center
+            ? Alignment.center
+            : Alignment.centerLeft,
+        child: titleText,
+      );
+    }
     return Column(
       crossAxisAlignment: align == TextAlign.center
           ? CrossAxisAlignment.center
           : CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          textAlign: align,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
+        titleText,
         if (subtitle != null) ...[
           const SizedBox(height: 12),
           Text(

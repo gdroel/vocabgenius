@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// UserDefaults and uses it to generate its TimelineEntries.
 class WidgetPreferences {
   static const _kWordsPerDayKey = 'words_per_day';
-  static const int defaultWordsPerDay = 12;
+  static const int defaultWordsPerDay = 24;
   static const int minWordsPerDay = 0;
   static const int maxWordsPerDay = 48;
 

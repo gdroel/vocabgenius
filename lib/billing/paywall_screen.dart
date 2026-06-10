@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
+import '../push_service.dart';
 import '../onboarding/widgets.dart';
 import '../telemetry.dart';
 import '../user_profile.dart';
@@ -82,6 +83,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (desired) {
       final granted = await NotificationsService.instance
           .requestIosPermission();
+      if (granted) PushService.instance.onNotificationsGranted();
       if (!mounted) return;
       if (!granted) {
         setState(() => _reminderBeforeTrialEnds = false);

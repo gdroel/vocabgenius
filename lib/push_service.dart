@@ -54,14 +54,21 @@ class PushService {
       case 'onNotificationTap':
         _navigate(call.arguments as String? ?? 'hello');
         break;
-      case 'onNotificationsEnabled':
-        if (!_notifiedEnabled) {
-          _notifiedEnabled = true;
-          Telemetry.notificationsEnabled();
-        }
-        break;
     }
     return null;
+  }
+
+  /// Called from the onboarding (and paywall) opt-in once the user grants
+  /// notification permission. Fires the one-time "enabled" event and asks iOS
+  /// for an APNs token so server-driven pushes can deliver.
+  void onNotificationsGranted() {
+    if (!_notifiedEnabled) {
+      _notifiedEnabled = true;
+      Telemetry.notificationsEnabled();
+    }
+    _channel
+        .invokeMethod('registerForRemoteNotifications')
+        .catchError((_) {});
   }
 
   void _onToken(String token) {
