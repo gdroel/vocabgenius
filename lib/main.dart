@@ -86,10 +86,14 @@ class ProfessorPipApp extends StatelessWidget {
             home: ListenableBuilder(
               listenable: billing,
               builder: (_, _) {
+                // A verified Pro entitlement always unlocks the full app — even
+                // if the user purchased mid-onboarding (e.g. via the monthly
+                // offer push). This must be checked BEFORE the onboarding gate
+                // so buying never drops them back onto a paywall step.
+                if (billing.isPro) return const HomeScreen();
                 if (!onboardingCompleted) {
                   return OnboardingFlow(initialStep: onboardingStep);
                 }
-                if (billing.isPro) return const HomeScreen();
                 return _PaywallGate();
               },
             ),

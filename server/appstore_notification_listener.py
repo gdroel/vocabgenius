@@ -166,6 +166,51 @@ SUBTYPE_NOTE = {
     "GRACE_PERIOD": "in grace period",
 }
 
+# A free-trial lifecycle is derived from the raw notification, not sent by
+# Apple as its own type. Apple delivers a trial START as SUBSCRIBED and a trial
+# CANCEL as DID_CHANGE_RENEWAL_STATUS / AUTO_RENEW_DISABLED — identical on the
+# surface to a paid purchase or a paid cancellation. The free-trial signal is
+# in the transaction's intro-offer fields, so we look there to tell them apart.
+TRIAL_LIFECYCLE = {
+    "TRIAL_STARTED": {
+        "icon": "🎁",
+        "note": "FREE TRIAL STARTED (no charge yet — converts to paid at expiry unless cancelled)",
+    },
+    "TRIAL_CANCELLED": {
+        "icon": "🥀",
+        "note": "FREE TRIAL CANCELLED (cancelled during the trial — no charge unless they re-enable)",
+    },
+}
+
+
+def _is_free_trial(tx):
+    """True if this transaction is an introductory FREE-trial period.
+
+    `offerDiscountType` is the authoritative modern field; the offerType==1
+    (introductory) + zero-price check is a fallback for older payloads that
+    predate offerDiscountType.
+    """
+    if tx.get("offerDiscountType") == "FREE_TRIAL":
+        return True
+    return tx.get("offerType") == 1 and tx.get("price") in (0, None)
+
+
+def trial_lifecycle(ntype, subtype, tx):
+    """Classify a notification as a free-trial start/cancel, or None.
+
+    - START : SUBSCRIBED for a transaction that is itself a free trial.
+    - CANCEL: auto-renew turned OFF while the CURRENT period is still the
+              free trial (a paid-subscription cancel carries a paid current
+              transaction, so _is_free_trial filters those out).
+    """
+    if not _is_free_trial(tx):
+        return None
+    if ntype == "SUBSCRIBED":
+        return "TRIAL_STARTED"
+    if ntype == "DID_CHANGE_RENEWAL_STATUS" and subtype == "AUTO_RENEW_DISABLED":
+        return "TRIAL_CANCELLED"
+    return None
+
 
 def b64url_json(segment):
     """Decode one base64url JWS segment into a dict."""
@@ -202,12 +247,17 @@ def summarize(payload):
     data = payload.get("data", {})
     tx = decode_jws_payload(data.get("signedTransactionInfo", ""))
     renewal = decode_jws_payload(data.get("signedRenewalInfo", ""))
+    # Derive a free-trial start/cancel and let it override the generic icon/note,
+    # since Apple reports both as ordinary subscribe / renewal-status changes.
+    lifecycle = trial_lifecycle(ntype, subtype, tx)
+    trial = TRIAL_LIFECYCLE.get(lifecycle)
     return {
         "received_at": datetime.now(tz=timezone.utc).isoformat(),
-        "icon": NOTIF_ICON.get(ntype, "❓"),
+        "icon": trial["icon"] if trial else NOTIF_ICON.get(ntype, "❓"),
         "type": ntype,
         "subtype": subtype,
-        "note": SUBTYPE_NOTE.get(subtype),
+        "lifecycle": lifecycle,
+        "note": trial["note"] if trial else SUBTYPE_NOTE.get(subtype),
         "environment": data.get("environment"),
         "bundleId": data.get("bundleId"),
         "product": tx.get("productId"),

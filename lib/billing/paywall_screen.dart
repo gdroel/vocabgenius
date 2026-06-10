@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import '../push_service.dart';
@@ -271,6 +273,12 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     if (!_wasPro && billing.isPro) {
       _wasPro = true;
+      // A monthly purchase fully converts the user, so mark onboarding complete:
+      // this keeps a relaunch (or a later entitlement lapse) from dropping them
+      // back into the onboarding flow if they bought from the offer mid-flow.
+      SharedPreferences.getInstance()
+          .then((p) => p.setBool('onboarding_completed', true))
+          .catchError((_) => false);
       // Pop every pushed route (this screen + any paywall underneath) back to
       // the root, which now renders the main app experience since isPro is true.
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
@@ -313,13 +321,13 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 28),
+              const SizedBox(height: 8),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
-                    width: 84,
-                    height: 84,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
@@ -341,17 +349,17 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   const SizedBox(width: 6),
                   const Expanded(
                     child: _PipBubble(
-                      text: 'We have a special offer for you, '
-                          'get daily vocab words for just \$5 a month!',
+                      text: 'Special offer just for you, '
+                          'daily vocab for just \$5 a month!',
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
               Expanded(
                 child: Center(
                   child: AspectRatio(
-                    aspectRatio: 1419 / 1046, // matches assets/lockscreen.png
+                    aspectRatio: 3870 / 4773, // matches assets/lockscreen.png
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
@@ -371,7 +379,7 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               if (billing?.lastError != null && !(billing?.isPro ?? false))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -385,20 +393,20 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   ),
                 ),
               PrimaryButton(
-                label: _busy ? 'Working…' : 'Sign Up',
+                label: _busy ? 'Working…' : 'Unlock for \$4.99 a month',
                 onPressed: _busy ? null : _buy,
               ),
               const SizedBox(height: 10),
-              const Text(
-                '30-day money-back guarantee',
+              Text(
+                '30-day money-back guarantee, cancel anytime',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.ink,
+                style: GoogleFonts.inter(
+                  color: AppColors.success,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 24),
               GestureDetector(
                 onTap: _busy ? null : _restore,
                 child: const Text(
@@ -415,12 +423,33 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
   }
 }
 
-class _DiscountBadge extends StatelessWidget {
+class _DiscountBadge extends StatefulWidget {
   const _DiscountBadge();
 
   @override
+  State<_DiscountBadge> createState() => _DiscountBadgeState();
+}
+
+class _DiscountBadgeState extends State<_DiscountBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  )..repeat(reverse: true);
+  late final Animation<double> _scale = Tween<double>(begin: 0.92, end: 1.1)
+      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
+    return ScaleTransition(
+      scale: _scale,
+      child: Transform.rotate(
       angle: 0.18,
       child: Container(
         width: 88,
@@ -459,6 +488,7 @@ class _DiscountBadge extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

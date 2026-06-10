@@ -54,7 +54,7 @@ class NotificationsService {
     await _plugin.zonedSchedule(
       _trialReminderId,
       'Your Professor Pip starts tomorrow!',
-      "We're excited for you to continue learning",
+      "You've learned 24 words in your first two days with me. Let's keep the ball rolling!",
       fireAt,
       const NotificationDetails(
         iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),

@@ -128,17 +128,18 @@ class _SingleChoiceScreenState extends State<_SingleChoiceScreen> {
 class _MultiChoiceScreen extends StatefulWidget {
   final StepCallbacks cb;
   final String title;
-  final String? subtitle;
   final List<String> options;
   final Set<String> Function(OnboardingData) read;
   final bool showSkip;
+  /// Optional difficulty badge shown above the title (e.g. "Beginner words").
+  final String? pill;
   const _MultiChoiceScreen({
     required this.cb,
     required this.title,
-    this.subtitle,
     required this.options,
     required this.read,
     this.showSkip = true,
+    this.pill,
   });
 
   @override
@@ -161,7 +162,11 @@ class _MultiChoiceScreenState extends State<_MultiChoiceScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 12),
-            TitleHeader(title: widget.title, subtitle: widget.subtitle),
+            if (widget.pill != null) ...[
+              Center(child: _DifficultyPill(text: widget.pill!)),
+              const SizedBox(height: 14),
+            ],
+            TitleHeader(title: widget.title),
             const SizedBox(height: 24),
             Expanded(
               child: ListView.separated(
@@ -186,6 +191,38 @@ class _MultiChoiceScreenState extends State<_MultiChoiceScreen> {
               enabled: set.isNotEmpty,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small difficulty badge (e.g. "Beginner words") shown above the
+/// "Select all the words you know" instruction on the word-list screens.
+class _DifficultyPill extends StatelessWidget {
+  final String text;
+  const _DifficultyPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.burgundy,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(
+          color: Brutal.borderColor,
+          width: Brutal.borderWidth,
+        ),
+        boxShadow: Brutal.shadow(dx: 2, dy: 3),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.cream,
+          fontWeight: FontWeight.w800,
+          fontSize: 14,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -639,8 +676,8 @@ class Step04bLockscreenIntro extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = OnboardingScope.of(context).name.trim();
     final line = name.isEmpty
-        ? 'See new words on your lockscreen!'
-        : 'Hey $name! See new words on your lockscreen!';
+        ? 'Learn a new word on the lockscreen widget every hour.'
+        : 'Hey $name! Learn a new word on the lockscreen widget every hour.';
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
@@ -667,7 +704,7 @@ class Step04bLockscreenIntro extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             PrimaryButton(
-              label: 'Continue',
+              label: 'Nice!',
               onPressed: () {
                 // Prompt for an App Store review as the user leaves the
                 // lockscreen page (iOS decides whether to actually show it).
@@ -723,18 +760,18 @@ class _Step04cWordOfDayNotificationState
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
+      showSkip: true,
+      onSkip: _busy ? null : _skip,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 12),
             const TitleHeader(
               title: 'Get a Personalized Word\nof the Day Notification',
-              subtitle: 'One notification a day. No spam, ever.',
               fitTitle: true,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Expanded(
               child: Center(
                 child: Image.asset(
@@ -750,20 +787,13 @@ class _Step04cWordOfDayNotificationState
               enabled: !_busy,
             ),
             const SizedBox(height: 14),
-            Center(
-              child: GestureDetector(
-                onTap: _busy ? null : _skip,
-                behavior: HitTestBehavior.opaque,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-                  child: Text(
-                    'Maybe later',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
-                  ),
+            const Center(
+              child: Text(
+                'One notification a day. No spam, ever.',
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
                 ),
               ),
             ),
@@ -1413,8 +1443,8 @@ class Step17BeginnerWords extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _MultiChoiceScreen(
     cb: cb,
-    title: 'Beginner words',
-    subtitle: 'Select all the ones you know',
+    pill: 'Beginner words',
+    title: 'Select all the\nwords you know',
     options: const [
       'Eager',
       'Vivid',
@@ -1435,8 +1465,8 @@ class Step18IntermediateWords extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _MultiChoiceScreen(
     cb: cb,
-    title: 'Intermediate words',
-    subtitle: 'Select all the ones you know',
+    pill: 'Intermediate words',
+    title: 'Select all the\nwords you know',
     options: const [
       'Ephemeral',
       'Candid',
@@ -1457,8 +1487,8 @@ class Step19AdvancedWords extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _MultiChoiceScreen(
     cb: cb,
-    title: 'Advanced words',
-    subtitle: 'Select all the ones you know',
+    pill: 'Advanced words',
+    title: 'Select all the\nwords you know',
     options: const [
       'Petrichor',
       'Sonder',
@@ -1520,8 +1550,6 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
-      onSkip: widget.cb.skip,
-      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
