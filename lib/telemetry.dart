@@ -31,7 +31,11 @@ class Telemetry {
   /// The user started the monthly plan (from the notification paywall).
   static void monthlyStarted() => _send('monthly_started');
 
-  static Future<void> _send(String event) async {
+  /// The user entered their name during onboarding; [name] is sent as the
+  /// event value.
+  static void nameEntered(String name) => _send('name_entered', value: name);
+
+  static Future<void> _send(String event, {String? value}) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.
     final userId = await BillingService.currentAppUserId();
@@ -40,7 +44,9 @@ class Telemetry {
         ..connectionTimeout = const Duration(seconds: 5);
       final request = await client.postUrl(Uri.parse('$_baseUrl/client-event'));
       request.headers.contentType = ContentType.json;
-      request.write(jsonEncode({'userId': userId, 'event': event}));
+      final body = <String, dynamic>{'userId': userId, 'event': event};
+      if (value != null) body['value'] = value;
+      request.write(jsonEncode(body));
       final response = await request.close();
       await response.drain<void>();
       client.close();

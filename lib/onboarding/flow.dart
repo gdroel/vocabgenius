@@ -27,7 +27,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   late final List<(String, Widget Function(StepCallbacks))> _steps = [
     ('Onboarding-01-Welcome', (cb) => Step01Welcome(cb: cb)),
-    ('Onboarding-02-TailorIntro', (cb) => Step02TailorIntro(cb: cb)),
     ('Onboarding-04-Name', (cb) => Step04Name(cb: cb)),
     ('Onboarding-04b-WordOfDay', (cb) => Step04cWordOfDayNotification(cb: cb)),
     ('Onboarding-04c-LockscreenIntro', (cb) => Step04bLockscreenIntro(cb: cb)),

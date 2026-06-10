@@ -5,6 +5,7 @@ import '../../app_review.dart';
 import '../../billing/paywall_screen.dart';
 import '../../notifications/notifications_service.dart';
 import '../../push_service.dart';
+import '../../telemetry.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
 import '../../user_profile.dart';
@@ -32,6 +33,8 @@ class _IntroScreen extends StatelessWidget {
       progress: cb.progress,
       onBack: cb.back,
       showBack: !cb.isFirst,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
         child: Column(
@@ -520,18 +523,6 @@ class _SpeechBubblePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// 2. Tailor word recommendations
-class Step02TailorIntro extends StatelessWidget {
-  final StepCallbacks cb;
-  const Step02TailorIntro({super.key, required this.cb});
-  @override
-  Widget build(BuildContext context) => _IntroScreen(
-    cb: cb,
-    icon: Icons.stairs_rounded,
-    title: 'Tailor your word\nrecommendations',
-  );
-}
-
 // 4. Name
 class Step04Name extends StatefulWidget {
   final StepCallbacks cb;
@@ -623,7 +614,13 @@ class _Step04NameState extends State<Step04Name> {
             const SizedBox(height: 24),
             PrimaryButton(
               label: 'Continue',
-              onPressed: data.name.trim().isEmpty ? null : widget.cb.next,
+              onPressed: data.name.trim().isEmpty
+                  ? null
+                  : () {
+                      // Record the chosen name as a server-side event.
+                      Telemetry.nameEntered(data.name.trim());
+                      widget.cb.next();
+                    },
               enabled: data.name.trim().isNotEmpty,
             ),
           ],
@@ -647,6 +644,8 @@ class Step04bLockscreenIntro extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -784,6 +783,8 @@ class Step06DailyRoutine extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -919,6 +920,8 @@ class Step07Notifications extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -1154,6 +1157,8 @@ class Step08Theme extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -1258,6 +1263,12 @@ class _Step11CategoriesState extends State<Step11Categories> {
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
+      onSkip: () {
+        // Skipping selects every category by default.
+        repo.setAll(TopicsCatalog.all.map((t) => t.id));
+        widget.cb.skip();
+      },
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -1413,7 +1424,7 @@ class Step17BeginnerWords extends StatelessWidget {
       'Dwindle',
     ],
     read: (d) => d.beginnerKnown,
-    showSkip: false,
+    showSkip: true,
   );
 }
 
@@ -1435,7 +1446,7 @@ class Step18IntermediateWords extends StatelessWidget {
       'Wistful',
     ],
     read: (d) => d.intermediateKnown,
-    showSkip: false,
+    showSkip: true,
   );
 }
 
@@ -1457,7 +1468,7 @@ class Step19AdvancedWords extends StatelessWidget {
       'Defenestrate',
     ],
     read: (d) => d.advancedKnown,
-    showSkip: false,
+    showSkip: true,
   );
 }
 
@@ -1509,6 +1520,8 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
+      onSkip: widget.cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -1559,6 +1572,8 @@ class Step22OneMinuteADay extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
@@ -1612,6 +1627,8 @@ class Step23ThreeDaysFree extends StatelessWidget {
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         child: Column(
