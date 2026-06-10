@@ -3,10 +3,8 @@ import '../onboarding/theme.dart';
 import '../onboarding/widgets.dart';
 import 'billing_service.dart';
 
-const _annualProductId = 'pipannualplan';
-
 /// Shows the limited-time 40%-off offer as a bottom sheet. No-op for Pro users.
-/// The CTA routes to ZeroSettle web checkout for [_annualProductId].
+/// The CTA purchases the annual plan through RevenueCat.
 Future<void> maybeShowOfferSheet(
   BuildContext context,
   BillingService billing,
@@ -35,7 +33,7 @@ class _OfferSheetState extends State<_OfferSheet> {
 
   Future<void> _claim() async {
     setState(() => _busy = true);
-    final ok = await widget.billing.buyViaZeroSettle(_annualProductId);
+    final ok = await widget.billing.buyAnnual();
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
@@ -52,8 +50,7 @@ class _OfferSheetState extends State<_OfferSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final price = widget.billing.zeroSettleProduct(_annualProductId)?.webPrice
-        ?.formatted;
+    final price = widget.billing.annualPriceLabel;
     return SafeArea(
       top: false,
       child: Padding(
