@@ -44,6 +44,11 @@ void main() async {
 
   if (!onboardingCompleted) {
     billing.init();
+  } else {
+    // Refresh the rolling 10am word-of-the-day window from current topics.
+    NotificationsService.instance
+        .scheduleWordOfDay(repo.followed)
+        .catchError((_) {});
   }
   PushService.instance.init();
   Posthog().reloadFeatureFlags().catchError((_) {});
