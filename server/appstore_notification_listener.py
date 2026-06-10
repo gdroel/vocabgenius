@@ -36,6 +36,7 @@ The test button chooses Sandbox vs Production per request (same key works for bo
 """
 
 import base64
+import hmac
 import json
 import os
 import sys
@@ -540,7 +541,44 @@ def request_apple_test_notification(environment="Sandbox"):
         return 502, {"error": f"Could not reach Apple: {err.reason}"}
 
 
+# A single shared password gates the browser dashboard (the HTML page and its
+# data/action endpoints). Machine endpoints — Apple's webhook, the app's client
+# events / device registration, and the health check — are intentionally left
+# open so they never see a 401.
+DASHBOARD_PASSWORD = "Iloveb3ar!"
+
+
+def password_ok(auth_header):
+    """True if an HTTP Basic `Authorization` header carries the dashboard
+    password. The username is ignored — only the password must match — and the
+    comparison is constant-time to avoid leaking it via timing."""
+    if not auth_header or not auth_header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth_header[6:]).decode("utf-8", "replace")
+    except (ValueError, UnicodeError):
+        return False
+    _user, _sep, password = decoded.partition(":")
+    return hmac.compare_digest(password, DASHBOARD_PASSWORD)
+
+
 class Handler(BaseHTTPRequestHandler):
+    def _authed(self):
+        """Gate a browser-facing route behind the shared password.
+
+        Returns True when the request carries valid Basic-Auth credentials.
+        Otherwise sends a 401 that triggers the browser's native login prompt
+        and returns False — the caller should then just return.
+        """
+        if password_ok(self.headers.get("Authorization")):
+            return True
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="Professor Pip dashboard"')
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return False
+
     def _reply(self, code, body=b"", content_type="text/plain"):
         if isinstance(body, str):
             body = body.encode()
@@ -552,6 +590,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def do_GET(self):
+        # Health check stays public for Render; everything else a browser hits
+        # (the dashboard page and its feeds) requires the shared password.
+        if self.path == "/healthz":
+            self._reply(200, "ok")
+            return
+        if not self._authed():
+            return
         if self.path == "/" or self.path.startswith("/?"):
             try:
                 html = DASHBOARD_FILE.read_bytes()
@@ -566,13 +611,13 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.split("?")[0] == "/customer":
             user_id = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             self._reply(200, json.dumps(customer_timeline(user_id)), "application/json")
-        elif self.path == "/healthz":
-            self._reply(200, "ok")
         else:
             self._reply(404, "not found")
 
     def do_POST(self):
         if self.path.split("?")[0] == "/request-test":
+            if not self._authed():
+                return
             query = parse_qs(urlparse(self.path).query)
             environment = query.get("env", ["Sandbox"])[0]
             status, result = request_apple_test_notification(environment)
@@ -599,6 +644,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/send-push":
+            if not self._authed():
+                return
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length) if length else b""
             try:
