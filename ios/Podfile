@@ -1,6 +1,6 @@
-# RevenueCat requires iOS 13+; pin explicitly so CocoaPods doesn't fall back
-# to its default and the resulting build doesn't drift from the Xcode target.
-platform :ios, '13.0'
+# iOS 14+ for SKStoreReviewController.requestReview(in:); pin explicitly so
+# CocoaPods doesn't fall back to its default and drift from the Xcode target.
+platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
