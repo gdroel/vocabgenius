@@ -362,7 +362,7 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
         ? 'Unlock for $priceLabel'
         : 'Unlock for $priceLabel a month';
     final subtext = _isLifetime
-        ? 'One time payment'
+        ? 'Pay once, enjoy daily vocab forever'
         : '30-day money-back guarantee, cancel anytime';
     return Scaffold(
       backgroundColor: AppColors.cream,
