@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../home/home_screen.dart';
 import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import '../push_service.dart';
@@ -172,7 +173,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              _Timeline(showReminder: _hardPaywall),
+              _Timeline(
+                showReminder: _hardPaywall,
+                monthlyPriceLabel: billing?.monthlyPriceLabel ?? '\$4.99',
+              ),
               const Spacer(flex: 1),
               if (_hardPaywall) ...[
                 _ReminderToggle(
@@ -259,6 +263,9 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
       _billing = billing;
       _wasPro = billing.isPro;
       billing.addListener(_onBillingChange);
+      // Fetch the discounted monthly product so the bubble and button show its
+      // real store price; rebuilds via _onBillingChange once it resolves.
+      billing.loadPipMonthlyTwo();
     }
   }
 
@@ -273,15 +280,24 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     if (!_wasPro && billing.isPro) {
       _wasPro = true;
-      // A monthly purchase fully converts the user, so mark onboarding complete:
-      // this keeps a relaunch (or a later entitlement lapse) from dropping them
-      // back into the onboarding flow if they bought from the offer mid-flow.
+      // Converting here completes the funnel. Persist onboarding-complete so a
+      // later launch skips straight to the app instead of resuming the flow...
       SharedPreferences.getInstance()
           .then((p) => p.setBool('onboarding_completed', true))
           .catchError((_) => false);
-      // Pop every pushed route (this screen + any paywall underneath) back to
-      // the root, which now renders the main app experience since isPro is true.
-      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      // ...and replace the entire navigation stack with the main app now.
+      // pushAndRemoveUntil (not popUntil) because the root route is usually
+      // still the onboarding flow when the offer is bought mid-onboarding —
+      // popping to it would land back on a paywall step.
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const HomeScreen(),
+            settings: const RouteSettings(name: 'HomeScreen'),
+          ),
+          (route) => false,
+        );
+      }
       return;
     }
     if (mounted) setState(() {});
@@ -292,7 +308,7 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      final ok = await billing.buyPipMonthly();
+      final ok = await billing.buyPipMonthlyTwo();
       if (ok) Telemetry.monthlyStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -313,6 +329,9 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
+    // Live store price for the discounted plan, falling back to its list price
+    // until loadPipMonthlyTwo() resolves.
+    final priceLabel = billing?.pipMonthlyTwoPriceLabel ?? '\$1.99';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -347,10 +366,10 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Expanded(
+                  Expanded(
                     child: _PipBubble(
                       text: 'Special offer just for you, '
-                          'daily vocab for just \$5 a month!',
+                          'daily vocab for just $priceLabel a month!',
                     ),
                   ),
                 ],
@@ -393,7 +412,7 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   ),
                 ),
               PrimaryButton(
-                label: _busy ? 'Working…' : 'Unlock for \$4.99 a month',
+                label: _busy ? 'Working…' : 'Unlock for $priceLabel a month',
                 onPressed: _busy ? null : _buy,
               ),
               const SizedBox(height: 10),
@@ -468,7 +487,7 @@ class _DiscountBadgeState extends State<_DiscountBadge>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '50%',
+              '60%',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 26,
@@ -496,7 +515,8 @@ class _DiscountBadgeState extends State<_DiscountBadge>
 
 class _Timeline extends StatelessWidget {
   final bool showReminder;
-  const _Timeline({this.showReminder = false});
+  final String? monthlyPriceLabel;
+  const _Timeline({this.showReminder = false, this.monthlyPriceLabel});
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -510,12 +530,15 @@ class _Timeline extends StatelessWidget {
     final now = DateTime.now();
     final reminder = now.add(const Duration(days: 2));
     final billing = now.add(const Duration(days: 3));
+    final memberSubtitle = monthlyPriceLabel != null
+        ? "$monthlyPriceLabel a month — you're official!"
+        : "You're official!";
     final items = [
       ('Install the app', 'Set it up to match your needs', Icons.download_rounded),
       ('Today - Free trial starts', 'Get full access', Icons.lock_open_rounded),
       if (showReminder)
         ('${_fmt(reminder)} - Trial reminder', "We'll remind you before it ends", Icons.notifications_active_rounded),
-      ('${_fmt(billing)} - Become member', "You're official!", Icons.workspace_premium_rounded),
+      ('${_fmt(billing)} - Become member', memberSubtitle, Icons.workspace_premium_rounded),
     ];
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),

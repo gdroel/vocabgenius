@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../billing/billing_service.dart';
 import '../onboarding/theme.dart';
 import '../user_profile.dart';
 
 const _suppressKey = 'lockscreen_prompt_dismissed_v1';
 
 Future<void> maybeShowLockscreenPrompt(BuildContext context) async {
+  // Only nudge once the user is genuinely in the full app — either Pro (they've
+  // unlocked everything) or they've finished onboarding. Since Pro users route
+  // straight to Home, this also guarantees the prompt never fires mid-flow.
+  final isPro = BillingScope.of(context).isPro;
   final prefs = await SharedPreferences.getInstance();
+  if (!isPro && !(prefs.getBool('onboarding_completed') ?? false)) return;
   if (prefs.getBool(_suppressKey) ?? false) return;
   if (!context.mounted) return;
   await showModalBottomSheet<void>(
