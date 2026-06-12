@@ -76,11 +76,20 @@ class NotificationsService {
   /// content on the fly, so we pre-fill a rolling window; call this again on
   /// app launch (and after onboarding) to refresh the words and top it up.
   ///
+  /// Word of the day is a paid perk, so it is only scheduled when
+  /// [hasActiveSubscription] is true. Calling this without an active
+  /// subscription cancels any window left over from a lapsed subscription, so
+  /// pass the current entitlement on every launch.
+  ///
   /// iOS only delivers these once notification permission is granted, so it is
   /// safe to call regardless of permission state.
-  Future<void> scheduleWordOfDay(Iterable<String> topicIds) async {
+  Future<void> scheduleWordOfDay(
+    Iterable<String> topicIds, {
+    required bool hasActiveSubscription,
+  }) async {
     await init();
     await cancelWordOfDay();
+    if (!hasActiveSubscription) return;
 
     final pool = List<Word>.of(WordsData.forTopics(topicIds));
     if (pool.isEmpty) return;

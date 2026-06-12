@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../billing/billing_service.dart';
 import '../home/home_screen.dart';
 import '../notifications/notifications_service.dart';
 import '../topics/topics_repository.dart';
@@ -76,9 +77,13 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       p.setBool(_kOnboardingCompletedKey, true);
     }).catchError((_) {});
     // Kick off the daily 10am word-of-the-day notifications from the topics the
-    // user just chose. (Delivers only if they granted notification permission.)
+    // user just chose — only for active subscribers, since it's a paid perk.
+    // (Delivers only if they also granted notification permission.)
     NotificationsService.instance
-        .scheduleWordOfDay(List.of(TopicsScope.of(context).followed))
+        .scheduleWordOfDay(
+          List.of(TopicsScope.of(context).followed),
+          hasActiveSubscription: BillingScope.of(context).isPro,
+        )
         .catchError((_) {});
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(

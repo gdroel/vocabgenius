@@ -45,9 +45,11 @@ void main() async {
   if (!onboardingCompleted) {
     billing.init();
   } else {
-    // Refresh the rolling 10am word-of-the-day window from current topics.
+    // Refresh the rolling 10am word-of-the-day window from current topics —
+    // only for active subscribers; this also clears the window if a previously
+    // paid subscription has since lapsed.
     NotificationsService.instance
-        .scheduleWordOfDay(repo.followed)
+        .scheduleWordOfDay(repo.followed, hasActiveSubscription: billing.isPro)
         .catchError((_) {});
   }
   PushService.instance.init();
