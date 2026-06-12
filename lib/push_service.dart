@@ -82,9 +82,16 @@ class PushService {
     // value) opens the monthly offer, preserving older notifications.
     final offer =
         route == 'lifetime' ? PaywallOffer.lifetime : PaywallOffer.monthly;
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (_) => OfferPaywallScreen(offer: offer)),
-    );
+    void push() => navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => OfferPaywallScreen(offer: offer)),
+        );
+    // On a cold-start tap the navigator may not be mounted yet when the buffered
+    // route arrives; defer to after the first frame so the push isn't dropped.
+    if (navigatorKey.currentState != null) {
+      push();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => push());
+    }
   }
 
   /// Register the held device token, but only once we have a real app user id.

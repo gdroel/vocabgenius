@@ -21,6 +21,12 @@ import FBSDKCoreKit
   private var pushChannel: FlutterMethodChannel?
   private var pendingDeviceToken: String?
   private var pendingRoute: String?
+  // True once Flutter has attached its Dart handler (signalled by its first
+  // getInitialRoute call). The channel object is created during launch, well
+  // before Dart runs, so `pushChannel != nil` is NOT a reliable readiness
+  // check — invoking it before the Dart handler exists silently drops the call.
+  // Until this flips true we buffer taps into pendingRoute instead.
+  private var flutterReady = false
 
   override func application(
     _ application: UIApplication,
@@ -116,9 +122,11 @@ import FBSDKCoreKit
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     let route = (response.notification.request.content.userInfo["route"] as? String) ?? "hello"
-    if let channel = pushChannel {
+    if flutterReady, let channel = pushChannel {
       channel.invokeMethod("onNotificationTap", arguments: route)
     } else {
+      // Cold-start tap: Dart hasn't attached its handler yet. Buffer the route
+      // so Flutter picks it up via getInitialRoute once it's running.
       pendingRoute = route
     }
     completionHandler()
@@ -198,6 +206,10 @@ import FBSDKCoreKit
       case "getDeviceToken":
         result(self?.pendingDeviceToken)
       case "getInitialRoute":
+        // Flutter's init asking for any buffered cold-start route — also our
+        // signal that the Dart handler is now attached, so later (warm) taps
+        // can be delivered live over the channel.
+        self?.flutterReady = true
         let route = self?.pendingRoute
         self?.pendingRoute = nil
         result(route)
