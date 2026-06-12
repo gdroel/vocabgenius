@@ -359,10 +359,10 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
         ? 'Special offer just for you, unlock Professor Pip forever!'
         : 'Special offer just for you, daily vocab for just $priceLabel a month!';
     final buttonLabel = _isLifetime
-        ? 'Unlock all the Professor Pip features, forever!'
+        ? 'Unlock for $priceLabel'
         : 'Unlock for $priceLabel a month';
     final subtext = _isLifetime
-        ? '$priceLabel one-time payment'
+        ? 'One time payment'
         : '30-day money-back guarantee, cancel anytime';
     return Scaffold(
       backgroundColor: AppColors.cream,
