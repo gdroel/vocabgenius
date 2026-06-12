@@ -360,12 +360,13 @@ def tokens_for_user(user_id):
     return [r["device_token"] for r in rows]
 
 
-def send_push(user_id, title, body):
+def send_push(user_id, title, body, route="monthly"):
     """Send an alert push to every device registered for this customer.
 
-    The payload always carries route="hello" so the app opens the fixed
-    "hello there" screen on tap. Tries the configured APNs environment first
-    and falls back to the other host on an environment-mismatch token error.
+    The payload carries a `route` ("monthly" or "lifetime") that tells the app
+    which offer paywall to open on tap; the app treats any unknown value as the
+    monthly offer. Tries the configured APNs environment first and falls back to
+    the other host on an environment-mismatch token error.
     """
     tokens = tokens_for_user(user_id)
     if not tokens:
@@ -398,7 +399,7 @@ def send_push(user_id, title, body):
         alert["title"] = title
     if body:
         alert["body"] = body
-    payload = {"aps": {"alert": alert, "sound": "default"}, "route": "hello"}
+    payload = {"aps": {"alert": alert, "sound": "default"}, "route": route}
     headers = {"authorization": f"bearer {provider_token}", "apns-topic": bundle_id,
                "apns-push-type": "alert", "apns-priority": "10"}
     host_order = (["sandbox", "production"] if default_env == "sandbox"
@@ -434,12 +435,15 @@ def send_push(user_id, title, body):
     print(f"📤 push to {user_id}: {sent}/{len(tokens)} delivered — {results}")
     sys.stdout.flush()
 
-    # Record the send (with its copy) on the customer's timeline.
+    # Record the send (with its copy + which offer) on the customer's timeline.
     if sent:
+        offer = "lifetime" if route == "lifetime" else "monthly"
         text = " — ".join(p for p in [title, body] if p)
+        suffix = f" ({offer})"
         record = {
             "event": "notification_sent",
-            "label": f"Sent: {text}" if text else "Notification sent",
+            "label": (f"Sent: {text}{suffix}" if text
+                      else f"Notification sent{suffix}"),
             "icon": "📤",
             "received_at": datetime.now(tz=timezone.utc).isoformat(),
         }
@@ -656,11 +660,12 @@ class Handler(BaseHTTPRequestHandler):
             user_id = (body.get("userId") or "").strip()
             title = (body.get("title") or "").strip()
             text = (body.get("body") or "").strip()
+            route = "lifetime" if (body.get("route") == "lifetime") else "monthly"
             if not user_id or not (title or text):
                 self._reply(400, json.dumps({"error": "userId and a title or body are required"}),
                             "application/json")
                 return
-            status, result = send_push(user_id, title, text)
+            status, result = send_push(user_id, title, text, route=route)
             self._reply(status, json.dumps(result), "application/json")
             return
 

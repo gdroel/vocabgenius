@@ -232,21 +232,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 }
 
-/// Monthly, no-free-trial paywall opened from a push notification.
+/// Which one-time offer a push opens the user to. The two differ only in copy,
+/// the discount badge, and which product they buy — everything else (layout,
+/// navigation, entitlement) is shared.
+enum PaywallOffer { monthly, lifetime }
+
+/// No-free-trial paywall opened from a push notification, in two variants:
+///   - [PaywallOffer.monthly]:  the $1.99/mo "60% off" professorpipmonthlytwo
+///   - [PaywallOffer.lifetime]: the one-time professorpiplifetime purchase
 /// Mirrors [PaywallScreen] but swaps the trial timeline for the onboarding
-/// lockscreen image and adds a 30-day money-back guarantee. Buying grants the
-/// same Pro entitlement as the annual plan.
-class MonthlyPaywallScreen extends StatefulWidget {
-  const MonthlyPaywallScreen({super.key});
+/// lockscreen image. Buying either grants the same Pro entitlement as the
+/// annual plan.
+class OfferPaywallScreen extends StatefulWidget {
+  final PaywallOffer offer;
+  const OfferPaywallScreen({super.key, required this.offer});
 
   @override
-  State<MonthlyPaywallScreen> createState() => _MonthlyPaywallScreenState();
+  State<OfferPaywallScreen> createState() => _OfferPaywallScreenState();
 }
 
-class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
+class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
   bool _busy = false;
   bool _wasPro = false;
   BillingService? _billing;
+
+  bool get _isLifetime => widget.offer == PaywallOffer.lifetime;
 
   @override
   void initState() {
@@ -263,9 +273,13 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
       _billing = billing;
       _wasPro = billing.isPro;
       billing.addListener(_onBillingChange);
-      // Fetch the discounted monthly product so the bubble and button show its
-      // real store price; rebuilds via _onBillingChange once it resolves.
-      billing.loadPipMonthlyTwo();
+      // Fetch this offer's product so the bubble and button show its real store
+      // price; rebuilds via _onBillingChange once it resolves.
+      if (_isLifetime) {
+        billing.loadLifetime();
+      } else {
+        billing.loadPipMonthlyTwo();
+      }
     }
   }
 
@@ -274,6 +288,12 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     _billing?.removeListener(_onBillingChange);
     super.dispose();
   }
+
+  /// Live store price for this offer, falling back to its list price until the
+  /// product load resolves.
+  String _priceLabel(BillingService? billing) => _isLifetime
+      ? (billing?.lifetimePriceLabel ?? '\$9.99')
+      : (billing?.pipMonthlyTwoPriceLabel ?? '\$1.99');
 
   void _onBillingChange() {
     final billing = _billing;
@@ -308,8 +328,13 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      final ok = await billing.buyPipMonthlyTwo();
-      if (ok) Telemetry.monthlyStarted();
+      if (_isLifetime) {
+        final ok = await billing.buyLifetime();
+        if (ok) Telemetry.lifetimePurchased();
+      } else {
+        final ok = await billing.buyPipMonthlyTwo();
+        if (ok) Telemetry.monthlyStarted();
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -329,9 +354,16 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    // Live store price for the discounted plan, falling back to its list price
-    // until loadPipMonthlyTwo() resolves.
-    final priceLabel = billing?.pipMonthlyTwoPriceLabel ?? '\$1.99';
+    final priceLabel = _priceLabel(billing);
+    final bubbleText = _isLifetime
+        ? 'Special offer just for you, unlock Professor Pip forever!'
+        : 'Special offer just for you, daily vocab for just $priceLabel a month!';
+    final buttonLabel = _isLifetime
+        ? 'Unlock all the Professor Pip features, forever!'
+        : 'Unlock for $priceLabel a month';
+    final subtext = _isLifetime
+        ? '$priceLabel one-time payment'
+        : '30-day money-back guarantee, cancel anytime';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -366,12 +398,7 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: _PipBubble(
-                      text: 'Special offer just for you, '
-                          'daily vocab for just $priceLabel a month!',
-                    ),
-                  ),
+                  Expanded(child: _PipBubble(text: bubbleText)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -388,11 +415,13 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                             fit: BoxFit.contain,
                           ),
                         ),
-                        const Positioned(
-                          top: -6,
-                          right: -6,
-                          child: _DiscountBadge(),
-                        ),
+                        // The 60%-off badge only applies to the monthly offer.
+                        if (!_isLifetime)
+                          const Positioned(
+                            top: -6,
+                            right: -6,
+                            child: _DiscountBadge(),
+                          ),
                       ],
                     ),
                   ),
@@ -412,12 +441,12 @@ class _MonthlyPaywallScreenState extends State<MonthlyPaywallScreen> {
                   ),
                 ),
               PrimaryButton(
-                label: _busy ? 'Working…' : 'Unlock for $priceLabel a month',
+                label: _busy ? 'Working…' : buttonLabel,
                 onPressed: _busy ? null : _buy,
               ),
               const SizedBox(height: 10),
               Text(
-                '30-day money-back guarantee, cancel anytime',
+                subtext,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   color: AppColors.success,

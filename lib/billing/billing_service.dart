@@ -24,6 +24,13 @@ const proEntitlementId = 'Professor Pip Pro';
 // the same [proEntitlementId].
 const pipMonthlyTwoProductId = 'professorpipmonthlytwo';
 
+// The lifetime, non-consumable IAP (one-time $9.99 purchase). Like every other
+// plan it's attached to [proEntitlementId] in RevenueCat, so buying it unlocks
+// all Professor Pip features — permanently, since a non-subscription entitlement
+// never expires. Fetched as ProductCategory.nonSubscription (subscription is the
+// SDK default and would not find a one-time product).
+const lifetimeProductId = 'professorpiplifetime';
+
 const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
 class BillingService extends ChangeNotifier {
@@ -33,6 +40,7 @@ class BillingService extends ChangeNotifier {
   bool _configured = false;
   Offering? _currentOffering;
   StoreProduct? _pipMonthlyTwoProduct;
+  StoreProduct? _lifetimeProduct;
   String? _lastError;
 
   // Set once RevenueCat is configured. Reading the app user id before this is
@@ -205,6 +213,51 @@ class BillingService extends ChangeNotifier {
     return _runPurchase(PurchaseParams.storeProduct(product), product);
   }
 
+  /// The lifetime product (professorpiplifetime), once loaded via
+  /// [loadLifetime].
+  StoreProduct? get lifetimeProduct => _lifetimeProduct;
+
+  /// Localized, store-formatted price for the lifetime product (e.g. "$9.99"),
+  /// or null until [loadLifetime] has resolved it.
+  String? get lifetimePriceLabel => _lifetimeProduct?.priceString;
+
+  /// Fetches [lifetimeProductId] (a non-consumable) so its localized price is
+  /// available for the lifetime paywall. Best-effort and idempotent.
+  Future<void> loadLifetime() async {
+    if (_lifetimeProduct != null) return;
+    try {
+      final products = await Purchases.getProducts(
+        [lifetimeProductId],
+        productCategory: ProductCategory.nonSubscription,
+      );
+      if (products.isNotEmpty) {
+        _lifetimeProduct = products.first;
+        notifyListeners();
+      }
+    } on PlatformException {
+      // Best-effort: leave the fallback price in place.
+    }
+  }
+
+  /// Buys the lifetime plan promoted via push. Targets the product directly and
+  /// grants the same Pro entitlement as every other plan — permanently. Logs a
+  /// one-time purchase (not a trial start). Surfaces an error rather than
+  /// charging anything else if the product can't be loaded.
+  Future<bool> buyLifetime() async {
+    await loadLifetime();
+    final product = _lifetimeProduct;
+    if (product == null) {
+      _lastError = 'This offer is unavailable right now. Please try again.';
+      notifyListeners();
+      return false;
+    }
+    return _runPurchase(
+      PurchaseParams.storeProduct(product),
+      product,
+      oneTime: true,
+    );
+  }
+
   Future<bool> _purchase(Package? package) {
     if (package == null) {
       _lastError = 'Package unavailable — check the RevenueCat offering';
@@ -218,8 +271,14 @@ class BillingService extends ChangeNotifier {
   }
 
   /// Core purchase flow shared by package- and product-based purchases.
-  /// [product] is used only for start-trial analytics and entitlement logging.
-  Future<bool> _runPurchase(PurchaseParams params, StoreProduct product) async {
+  /// [product] is used only for analytics. [oneTime] logs a completed purchase
+  /// instead of a trial start — correct for the lifetime IAP, which has no
+  /// trial.
+  Future<bool> _runPurchase(
+    PurchaseParams params,
+    StoreProduct product, {
+    bool oneTime = false,
+  }) async {
     _lastError = null;
 
     try {
@@ -230,7 +289,11 @@ class BillingService extends ChangeNotifier {
           result.customerInfo.entitlements.all[proEntitlementId]?.isActive ??
               false;
       if (nowPro && !wasPro) {
-        await _logStartTrial(product);
+        if (oneTime) {
+          await _logPurchase(product);
+        } else {
+          await _logStartTrial(product);
+        }
       }
       return nowPro;
     } on PlatformException catch (e) {
@@ -282,6 +345,17 @@ class BillingService extends ChangeNotifier {
         orderId: product.identifier,
         currency: product.currencyCode,
         price: product.price,
+      );
+    } catch (_) {
+      // Non-fatal: analytics failure must not block the purchase flow.
+    }
+  }
+
+  Future<void> _logPurchase(StoreProduct product) async {
+    try {
+      await _fb.logPurchase(
+        amount: product.price,
+        currency: product.currencyCode,
       );
     } catch (_) {
       // Non-fatal: analytics failure must not block the purchase flow.

@@ -77,9 +77,13 @@ class PushService {
   }
 
   void _navigate(String route) {
-    // The destination is fixed for now regardless of route value.
+    // The push payload's route selects which offer paywall to open. Anything
+    // other than the explicit "lifetime" route (including the legacy "hello"
+    // value) opens the monthly offer, preserving older notifications.
+    final offer =
+        route == 'lifetime' ? PaywallOffer.lifetime : PaywallOffer.monthly;
     navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (_) => const MonthlyPaywallScreen()),
+      MaterialPageRoute(builder: (_) => OfferPaywallScreen(offer: offer)),
     );
   }
 
