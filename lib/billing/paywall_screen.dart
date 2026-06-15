@@ -642,7 +642,7 @@ class _PipBubbleState extends State<_PipBubble>
   );
   late final Animation<int> _chars =
       StepTween(begin: 0, end: widget.plainText.length)
-          .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+          .animate(CurvedAnimation(parent: _ctl, curve: Curves.linear));
 
   int _lastTickedAt = 0;
 
@@ -727,7 +727,7 @@ class _PipBubbleState extends State<_PipBubble>
                       fontWeight: FontWeight.w800,
                       height: 1.2,
                     );
-              return RichText(
+              final reveal = RichText(
                 text: TextSpan(
                   style: baseStyle,
                   children: [
@@ -739,6 +739,26 @@ class _PipBubbleState extends State<_PipBubble>
                       ),
                   ],
                 ),
+              );
+              // Reserve the final size with an invisible copy of the full text
+              // so the bubble never reflows (resizes) as it types — that resize
+              // is what made the fill look jerky.
+              return Stack(
+                children: [
+                  Opacity(
+                    opacity: 0,
+                    child: RichText(
+                      text: TextSpan(
+                        style: baseStyle,
+                        children: _visibleSpans(
+                          widget.plainText.length,
+                          baseStyle,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(child: reveal),
+                ],
               );
             },
           ),
@@ -908,8 +928,8 @@ class _SpecialOfferDialog extends StatelessWidget {
               child: Lottie.asset(
                 'assets/lottie/gift.json',
                 fit: BoxFit.contain,
-                // Until a real gift Lottie is dropped in, fall back to the
-                // static gift image so the popover never renders broken.
+                // Falls back to the static gift image if the Lottie ever fails
+                // to load, so the popover never renders broken.
                 errorBuilder: (_, _, _) =>
                     Image.asset('assets/gift.png', fit: BoxFit.contain),
               ),

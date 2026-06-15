@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
 import '../../app_review.dart';
@@ -19,12 +20,10 @@ class _IntroScreen extends StatelessWidget {
   final StepCallbacks cb;
   final IconData icon;
   final String title;
-  final String? subtitle;
   const _IntroScreen({
     required this.cb,
     required this.icon,
     required this.title,
-    this.subtitle,
   });
 
   @override
@@ -46,7 +45,7 @@ class _IntroScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     HeroIllustration(icon: icon, size: 170),
                     const SizedBox(height: 32),
-                    TitleHeader(title: title, subtitle: subtitle),
+                    TitleHeader(title: title),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -273,7 +272,7 @@ class Step01Welcome extends StatelessWidget {
                 ),
               ),
               const Spacer(flex: 2),
-              PrimaryButton(label: 'Nice to meet you, Pip', onPressed: cb.next),
+              PrimaryButton(label: 'Nice to meet you, Pip!', onPressed: cb.next),
             ],
           ),
         ),
@@ -298,7 +297,7 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
     duration: Duration(milliseconds: (_full.length * 22).clamp(900, 3200)),
   );
   late final Animation<int> _chars = StepTween(begin: 0, end: _full.length)
-      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+      .animate(CurvedAnimation(parent: _ctl, curve: Curves.linear));
 
   int _lastTickedAt = 0;
 
@@ -352,16 +351,17 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
           AnimatedBuilder(
             animation: _chars,
             builder: (_, _) {
+              const style = TextStyle(
+                color: AppColors.ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              );
               final shown = _full.substring(0, _chars.value);
               final isTyping = _chars.value < _full.length;
-              return RichText(
+              final reveal = RichText(
                 text: TextSpan(
-                  style: const TextStyle(
-                    color: AppColors.ink,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
+                  style: style,
                   children: [
                     TextSpan(text: shown),
                     if (isTyping)
@@ -371,6 +371,14 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
                       ),
                   ],
                 ),
+              );
+              // Reserve the final size with an invisible copy of the full text
+              // so the bubble never reflows as it types (the cause of the jerk).
+              return Stack(
+                children: [
+                  Opacity(opacity: 0, child: Text(_full, style: style)),
+                  Positioned.fill(child: reveal),
+                ],
               );
             },
           ),
@@ -386,7 +394,12 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
 /// larger. Same look as the paywall.
 class _PipSpeechRow extends StatelessWidget {
   final List<String> lines;
-  const _PipSpeechRow({super.key, required this.lines});
+  final Color textColor;
+  const _PipSpeechRow({
+    super.key,
+    required this.lines,
+    this.textColor = AppColors.ink,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +425,7 @@ class _PipSpeechRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Expanded(child: _TailedPipBubble(lines: lines)),
+        Expanded(child: _TailedPipBubble(lines: lines, textColor: textColor)),
       ],
     );
   }
@@ -420,7 +433,8 @@ class _PipSpeechRow extends StatelessWidget {
 
 class _TailedPipBubble extends StatefulWidget {
   final List<String> lines;
-  const _TailedPipBubble({required this.lines});
+  final Color textColor;
+  const _TailedPipBubble({required this.lines, this.textColor = AppColors.ink});
 
   @override
   State<_TailedPipBubble> createState() => _TailedPipBubbleState();
@@ -434,7 +448,7 @@ class _TailedPipBubbleState extends State<_TailedPipBubble>
     duration: Duration(milliseconds: (_full.length * 22).clamp(900, 3200)),
   );
   late final Animation<int> _chars = StepTween(begin: 0, end: _full.length)
-      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOut));
+      .animate(CurvedAnimation(parent: _ctl, curve: Curves.linear));
 
   int _lastTickedAt = 0;
 
@@ -481,16 +495,17 @@ class _TailedPipBubbleState extends State<_TailedPipBubble>
             AnimatedBuilder(
               animation: _chars,
               builder: (_, _) {
+                final style = TextStyle(
+                  color: widget.textColor,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                );
                 final shown = _full.substring(0, _chars.value);
                 final isTyping = _chars.value < _full.length;
-                return RichText(
+                final reveal = RichText(
                   text: TextSpan(
-                    style: const TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
-                    ),
+                    style: style,
                     children: [
                       TextSpan(text: shown),
                       if (isTyping)
@@ -500,6 +515,14 @@ class _TailedPipBubbleState extends State<_TailedPipBubble>
                         ),
                     ],
                   ),
+                );
+                // Reserve the final size with an invisible copy of the full
+                // text so the bubble never reflows as it types.
+                return Stack(
+                  children: [
+                    Opacity(opacity: 0, child: Text(_full, style: style)),
+                    Positioned.fill(child: reveal),
+                  ],
                 );
               },
             ),
@@ -785,6 +808,7 @@ class _Step04cWordOfDayNotificationState
               label: _busy ? 'Turning on…' : 'Get word of the day',
               onPressed: _busy ? null : _enable,
               enabled: !_busy,
+              color: AppColors.forestGreen,
             ),
             const SizedBox(height: 14),
             const Center(
@@ -1319,7 +1343,7 @@ class _Step11CategoriesState extends State<Step11Categories> {
                   runSpacing: 12,
                   children: TopicsCatalog.all
                       .map(
-                        (t) => Chip(
+                        (t) => TopicChip(
                           label: t.title,
                           selected: selected.contains(t.id),
                           onTap: () async {
@@ -1502,21 +1526,7 @@ class Step19AdvancedWords extends StatelessWidget {
   );
 }
 
-// 20. Assessment ready
-class Step20AssessmentReady extends StatelessWidget {
-  final StepCallbacks cb;
-  const Step20AssessmentReady({super.key, required this.cb});
-  @override
-  Widget build(BuildContext context) => _IntroScreen(
-    cb: cb,
-    icon: Icons.assignment_turned_in_rounded,
-    title: 'Great!',
-    subtitle:
-        'A personalized level assessment is waiting for you in the app',
-  );
-}
-
-// 21. Building plan (loading) — added to make it 24 steps
+// 21. Building plan (loading) — Pip speaks over a storm of flying vocab words.
 class Step21BuildingPlan extends StatefulWidget {
   final StepCallbacks cb;
   const Step21BuildingPlan({super.key, required this.cb});
@@ -1532,7 +1542,7 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
     super.initState();
     _ac = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 8),
     )..forward();
     _ac.addStatusListener((s) {
       if (s == AnimationStatus.completed && mounted) widget.cb.next();
@@ -1550,41 +1560,267 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
     return OnboardingScaffold(
       progress: widget.cb.progress,
       onBack: widget.cb.back,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-        child: Column(
-          children: [
-            const Spacer(flex: 2),
-            Image.asset(
-              'assets/personalizedplan.png',
-              width: 220,
-              height: 220,
-              fit: BoxFit.contain,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The word storm only fills the area above the progress bar, so no
+          // words ever pass behind it.
+          Expanded(
+            child: Stack(
+              children: [
+                const Positioned.fill(child: _WordStorm()),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Spacer(flex: 2),
+                      _PipSpeechRow(
+                        textColor: Colors.black,
+                        lines: [
+                          "Hang tight! I'm building your personalized plan.",
+                        ],
+                      ),
+                      Spacer(flex: 3),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
-            const TitleHeader(
-              title: 'Building your\npersonalized plan',
-              subtitle: 'This will only take a moment...',
-            ),
-            const SizedBox(height: 32),
-            AnimatedBuilder(
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: AnimatedBuilder(
               animation: _ac,
               builder: (_, _) => ClipRRect(
                 borderRadius: BorderRadius.circular(99),
                 child: LinearProgressIndicator(
                   value: _ac.value,
-                  minHeight: 6,
+                  minHeight: 10,
                   backgroundColor: AppColors.creamSoft,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.teal),
+                  valueColor:
+                      const AlwaysStoppedAnimation(AppColors.forestGreen),
                 ),
               ),
             ),
-            const Spacer(flex: 3),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// All-black vocabulary words streaming horizontally across the screen in
+/// parallax lanes — fading in at one edge and out the other, like words being
+/// filed into a schedule. Within each lane words are spaced by their own width
+/// plus a fixed gap, so they never overlap; lanes are spaced taller than the
+/// type so neighbouring rows never collide either. A backdrop for the
+/// plan-building loader: words are laid out once and re-drawn via canvas
+/// transforms, and the field is masked to fade at the left/right edges.
+class _WordStorm extends StatefulWidget {
+  const _WordStorm();
+
+  @override
+  State<_WordStorm> createState() => _WordStormState();
+}
+
+class _WordStormState extends State<_WordStorm>
+    with SingleTickerProviderStateMixin {
+  static const _words = [
+    'Ephemeral', 'Sonder', 'Petrichor', 'Eloquent', 'Lucid', 'Serendipity',
+    'Nuance', 'Mellifluous', 'Ineffable', 'Quixotic', 'Halcyon', 'Aplomb',
+    'Sublime', 'Verbose', 'Cogent', 'Pithy', 'Astute', 'Candor',
+    'Eclectic', 'Fervent', 'Gregarious', 'Idyllic', 'Jubilant', 'Keen',
+    'Limpid', 'Myriad', 'Nimble', 'Opulent', 'Pensive', 'Quaint',
+    'Resolute', 'Salient', 'Tenacious', 'Urbane', 'Vivid', 'Whimsical',
+    'Zealous', 'Ardent', 'Brisk', 'Cardinal', 'Deft', 'Erudite',
+    'Fluent', 'Genteel', 'Lithe', 'Sage', 'Vibrant', 'Witty',
+  ];
+
+  // All words are black; lanes differ only by opacity (depth), so a few alpha
+  // buckets baked into the painters cover the whole field with no per-frame
+  // re-layout or compositing.
+  static const _bucketAlphas = [0.32, 0.5, 0.7, 0.92];
+  static const _baseSize = 20.0;
+  static const _laneCount = 14;
+  static const _gap = 44.0; // min horizontal gap between adjacent words (px)
+  static const _wordsPerLane = 26;
+
+  late final AnimationController _ctl;
+  late final List<TextPainter> _painters;
+  late final List<_Lane> _lanes;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 90),
+    )..repeat();
+    _painters = _layoutPainters();
+    _lanes = _buildLanes();
+  }
+
+  List<TextPainter> _layoutPainters() {
+    final out = <TextPainter>[];
+    for (final word in _words) {
+      for (final a in _bucketAlphas) {
+        out.add(
+          TextPainter(
+            text: TextSpan(
+              text: word,
+              style: appText(
+                size: _baseSize,
+                weight: FontWeight.w700,
+                color: Colors.black.withValues(alpha: a),
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout(),
+        );
+      }
+    }
+    return out;
+  }
+
+  List<_Lane> _buildLanes() {
+    final rnd = math.Random(11);
+    final bucketCount = _bucketAlphas.length;
+    return List.generate(_laneCount, (i) {
+      // Spread depth across lanes (golden-ratio hop) so neighbours differ.
+      final depth = 0.2 + ((i * 0.61803398875 + 0.21) % 1.0) * 0.8;
+      final bucket = (depth * (bucketCount - 1)).round();
+      final scale = (12.0 + depth * 8.0) / _baseSize; // font 12..20
+      // Lay the lane's words end to end, each separated by its own width plus a
+      // gap, so nothing in the lane ever overlaps. Positions are screen-space.
+      final slots = <_Slot>[];
+      var cursor = 0.0;
+      for (var k = 0; k < _wordsPerLane; k++) {
+        final word = rnd.nextInt(_words.length);
+        final painterIndex = word * bucketCount + bucket;
+        slots.add(_Slot(painterIndex, cursor));
+        cursor += _painters[painterIndex].width * scale + _gap;
+      }
+      return _Lane(
+        scale: scale,
+        dir: i.isEven ? 1 : -1, // alternate lanes flow opposite ways
+        speed: 14.0 + depth * 30.0, // px/sec; closer (darker) lanes go faster
+        length: cursor, // full track length, including the trailing gap
+        slots: slots,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      // Fade words in and out at the left/right edges as they fly across.
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (rect) => const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Colors.transparent,
+          Colors.white,
+          Colors.white,
+          Colors.transparent,
+        ],
+        stops: [0.0, 0.1, 0.9, 1.0],
+      ).createShader(rect),
+      child: AnimatedBuilder(
+        animation: _ctl,
+        builder: (_, _) => CustomPaint(
+          painter: _WordStormPainter(
+            t: _ctl.value * 90.0,
+            lanes: _lanes,
+            painters: _painters,
+          ),
+          size: Size.infinite,
         ),
       ),
     );
   }
+}
+
+class _Slot {
+  final int painterIndex;
+  final double left; // left edge along the lane's track, in screen px
+  const _Slot(this.painterIndex, this.left);
+}
+
+class _Lane {
+  final double scale;
+  final int dir;
+  final double speed;
+  final double length;
+  final List<_Slot> slots;
+  const _Lane({
+    required this.scale,
+    required this.dir,
+    required this.speed,
+    required this.length,
+    required this.slots,
+  });
+}
+
+class _WordStormPainter extends CustomPainter {
+  final double t;
+  final List<_Lane> lanes;
+  final List<TextPainter> painters;
+  const _WordStormPainter({
+    required this.t,
+    required this.lanes,
+    required this.painters,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const margin = 90.0;
+    const topInset = 14.0;
+    const bottomInset = 10.0;
+    const bob = 2.5;
+    final laneCount = lanes.length;
+    final usable = size.height - topInset - bottomInset;
+
+    // Faint ruled rows, like a schedule the words are filing into.
+    final rule = Paint()
+      ..color = AppColors.ink.withValues(alpha: 0.05)
+      ..strokeWidth = 1;
+    for (var i = 1; i < laneCount; i++) {
+      final y = topInset + usable * i / laneCount;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), rule);
+    }
+
+    for (var i = 0; i < laneCount; i++) {
+      final lane = lanes[i];
+      final baseY = topInset + usable * (i + 0.5) / laneCount;
+      final L = lane.length;
+      for (var k = 0; k < lane.slots.length; k++) {
+        final slot = lane.slots[k];
+        // Scroll the whole track; Dart's % is non-negative for positive L.
+        final x = ((slot.left + lane.dir * lane.speed * t) % L) - margin;
+        final tp = painters[slot.painterIndex];
+        final w = tp.width * lane.scale;
+        if (x > size.width + margin || x + w < -margin) continue; // off-screen
+        final y = baseY + math.sin(t * 0.5 + i * 1.7 + k * 0.9) * bob;
+        canvas.save();
+        canvas.translate(x, y);
+        if (lane.scale != 1.0) canvas.scale(lane.scale);
+        tp.paint(canvas, Offset(0, -tp.height / 2));
+        canvas.restore();
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WordStormPainter oldDelegate) =>
+      oldDelegate.t != t;
 }
 
 // 22. Become more articulate — Pip pitch

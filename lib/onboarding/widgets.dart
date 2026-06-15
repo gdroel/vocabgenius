@@ -292,6 +292,48 @@ class Chip extends StatelessWidget {
   }
 }
 
+/// Like [Chip] but with a slightly larger label — used for the topic-selection
+/// grid so the topics read bigger without affecting other chip usages.
+class TopicChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const TopicChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.ink : Colors.white,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(
+            color: Brutal.borderColor,
+            width: Brutal.borderWidth,
+          ),
+          boxShadow: Brutal.shadow(dx: 2, dy: 3),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppColors.ink,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class HeroIllustration extends StatelessWidget {
   final IconData icon;
   final double size;
