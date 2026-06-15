@@ -75,6 +75,7 @@ flutter:
     - assets/wordoftheday.png
     - assets/gift.png
     - assets/lottie/
+    - assets/lottie/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

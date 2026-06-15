@@ -30,6 +30,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
   bool _wasPro = false;
   bool _reminderBeforeTrialEnds = false;
   bool _hardPaywall = false;
+  // True while the special-offer popover is up: it drives its own purchase and
+  // navigation, so the paywall's auto-onPurchased must stand down to avoid two
+  // navigations fighting over the same route stack.
+  bool _offerClaiming = false;
   BillingService? _billing;
 
   @override
@@ -65,7 +69,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (billing == null) return;
     if (!_wasPro && billing.isPro) {
       _wasPro = true;
-      widget.onPurchased();
+      if (!_offerClaiming) widget.onPurchased();
     }
     if (mounted) setState(() {});
   }
@@ -119,27 +123,21 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   /// Exit-intent offer shown when the user taps the round X on a hard paywall:
-  /// a popover pitching the discounted ~$2/mo plan. The dialog closes first and
-  /// returns whether the user claimed, so the purchase runs here on the paywall
-  /// (a successful buy navigates away via the billing listener / onPurchased).
-  Future<void> _showSpecialOffer() async {
+  /// a popover pitching the discounted ~$2/mo plan. The dialog runs the purchase
+  /// itself (so it stays up with a "Working…" button while the IAP sheet shows)
+  /// and dismisses once Pro is granted; the paywall's billing listener then
+  /// navigates away.
+  void _showSpecialOffer() {
     final billing = _billing;
     if (billing == null) return;
     // Warm the discounted product so its real store price is ready.
     billing.loadPipMonthlyTwo();
-    final claimed = await showDialog<bool>(
+    _offerClaiming = true;
+    showDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => const _SpecialOfferDialog(),
-    );
-    if (claimed != true || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      final ok = await billing.buyPipMonthlyTwo();
-      if (ok) Telemetry.monthlyStarted();
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+      builder: (_) => _SpecialOfferDialog(billing: billing),
+    ).then((_) => _offerClaiming = false);
   }
 
   @override
@@ -901,10 +899,46 @@ class _RoundCloseButton extends StatelessWidget {
 }
 
 /// Exit-intent popover offering the discounted ~$2/mo plan, fronted by a Lottie
-/// gift-opening animation. Pops `true` when the user taps claim (the caller then
-/// runs the purchase), or `false`/barrier-dismiss to decline.
-class _SpecialOfferDialog extends StatelessWidget {
-  const _SpecialOfferDialog();
+/// gift-opening animation. Runs the purchase in place: the dialog stays up (with
+/// a "Working…" button) while the StoreKit sheet shows, then dismisses once Pro
+/// is granted — leaving the paywall's billing listener to navigate on. A
+/// cancelled or failed purchase just resets the button and keeps the offer up.
+class _SpecialOfferDialog extends StatefulWidget {
+  final BillingService billing;
+  const _SpecialOfferDialog({required this.billing});
+
+  @override
+  State<_SpecialOfferDialog> createState() => _SpecialOfferDialogState();
+}
+
+class _SpecialOfferDialogState extends State<_SpecialOfferDialog> {
+  bool _busy = false;
+
+  Future<void> _claim() async {
+    setState(() => _busy = true);
+    // buyPipMonthlyTwo swallows its own errors and returns false on
+    // cancel/failure, so a try/finally isn't needed here.
+    final ok = await widget.billing.buyPipMonthlyTwo();
+    if (!mounted) return;
+    if (!ok) {
+      setState(() => _busy = false); // cancelled/failed — keep the offer up
+      return;
+    }
+    Telemetry.monthlyStarted();
+    // Go straight to the app — same path the push-offer paywall uses. Persist
+    // onboarding-complete (in case this was bought mid-onboarding) and replace
+    // the whole stack (this dialog + the paywall) with Home.
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool('onboarding_completed', true))
+        .catchError((_) => false);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const HomeScreen(),
+        settings: const RouteSettings(name: 'HomeScreen'),
+      ),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -919,12 +953,12 @@ class _SpecialOfferDialog extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              height: 160,
+              height: 290,
               child: Lottie.asset(
                 'assets/lottie/gift.json',
                 fit: BoxFit.contain,
@@ -934,7 +968,6 @@ class _SpecialOfferDialog extends StatelessWidget {
                     Image.asset('assets/gift.png', fit: BoxFit.contain),
               ),
             ),
-            const SizedBox(height: 8),
             Text(
               "Wait, don't leave!",
               textAlign: TextAlign.center,
@@ -967,14 +1000,14 @@ class _SpecialOfferDialog extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             PrimaryButton(
-              label: 'Try for \$2 a month',
-              color: AppColors.forestGreen,
-              pulse: true,
-              onPressed: () => Navigator.of(context).pop(true),
+              label: _busy ? 'Working…' : 'Try for \$2 a month',
+              color: AppColors.giftRed,
+              pulse: !_busy,
+              onPressed: _busy ? null : _claim,
             ),
             const SizedBox(height: 6),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
+              onPressed: _busy ? null : () => Navigator.of(context).pop(),
               child: const Text(
                 'No thanks',
                 style: TextStyle(color: AppColors.muted, fontSize: 14),

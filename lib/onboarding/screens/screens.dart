@@ -1535,23 +1535,31 @@ class Step21BuildingPlan extends StatefulWidget {
 }
 
 class _Step21BuildingPlanState extends State<Step21BuildingPlan>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _ac;
+  late final AnimationController _glow;
   @override
   void initState() {
     super.initState();
+    // 30% faster than the previous 8s.
     _ac = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 8),
+      duration: const Duration(milliseconds: 5600),
     )..forward();
     _ac.addStatusListener((s) {
       if (s == AnimationStatus.completed && mounted) widget.cb.next();
     });
+    // Repeating pulse that makes the bar glow.
+    _glow = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _ac.dispose();
+    _glow.dispose();
     super.dispose();
   }
 
@@ -1591,17 +1599,33 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: AnimatedBuilder(
-              animation: _ac,
-              builder: (_, _) => ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: _ac.value,
-                  minHeight: 10,
-                  backgroundColor: AppColors.creamSoft,
-                  valueColor:
-                      const AlwaysStoppedAnimation(AppColors.forestGreen),
-                ),
-              ),
+              animation: Listenable.merge([_ac, _glow]),
+              builder: (_, _) {
+                final g = Curves.easeInOut.transform(_glow.value);
+                return Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(99),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.forestGreen
+                            .withValues(alpha: 0.25 + 0.5 * g),
+                        blurRadius: 8 + 16 * g,
+                        spreadRadius: 0.5 + 2.5 * g,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: _ac.value,
+                      minHeight: 10,
+                      backgroundColor: AppColors.creamSoft,
+                      valueColor:
+                          const AlwaysStoppedAnimation(AppColors.forestGreen),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

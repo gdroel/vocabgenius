@@ -18,6 +18,8 @@ class AppColors {
   static const flame = Color(0xFFE85A2A);
   static const success = Color(0xFF4CAF7C);
   static const forestGreen = Color(0xFF2E7D4A);
+  // The gift animation's dominant red — used for the special-offer CTA.
+  static const giftRed = Color(0xFFF6454E);
 }
 
 // Neo-brutalist hard shadow + thick border
