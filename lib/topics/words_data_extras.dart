@@ -6,6 +6,17 @@ export 'literature_extras.dart' show kLiteratureExtras;
 export 'cuisine_extras.dart' show kCuisineExtras;
 export 'travel_extras.dart' show kTravelExtras;
 export 'music_extras.dart' show kMusicExtras;
+export 'business_extras2.dart' show kBusinessExtras2;
+export 'science_extras2.dart' show kScienceExtras2;
+export 'psychology_extras2.dart' show kPsychologyExtras2;
+export 'emotions_extras2.dart' show kEmotionsExtras2;
+export 'philosophy_extras2.dart' show kPhilosophyExtras2;
+export 'literature_extras2.dart' show kLiteratureExtras2;
+export 'cuisine_extras2.dart' show kCuisineExtras2;
+export 'travel_extras2.dart' show kTravelExtras2;
+export 'music_extras2.dart' show kMusicExtras2;
+export 'love_extras2.dart' show kLoveExtras2;
+export 'beautiful_extras2.dart' show kBeautifulExtras2;
 
 const kScienceExtras = <Word>[
   Word('science', 'quantum', 'adj.', 'Of the smallest discrete units of energy or matter', 'In quantum mechanics, an electron can be in two places at once.'),
