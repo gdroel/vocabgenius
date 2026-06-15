@@ -9,6 +9,7 @@ import '../../push_service.dart';
 import '../../telemetry.dart';
 import '../../topics/topics_catalog.dart';
 import '../../topics/topics_repository.dart';
+import '../../topics/words_data.dart';
 import '../../user_profile.dart';
 import '../flow.dart';
 import '../state.dart';
@@ -244,6 +245,7 @@ class Step01Welcome extends StatelessWidget {
             children: [
               const Spacer(flex: 1),
               const _PipIntroBubble(
+                fontSize: 22,
                 lines: [
                   "Hey! I'm Professor Pip.",
                   "Stick me on your lock screen and you'll learn new vocabulary every time you glance at your phone.",
@@ -283,7 +285,8 @@ class Step01Welcome extends StatelessWidget {
 
 class _PipIntroBubble extends StatefulWidget {
   final List<String> lines;
-  const _PipIntroBubble({super.key, required this.lines});
+  final double fontSize;
+  const _PipIntroBubble({super.key, required this.lines, this.fontSize = 17});
 
   @override
   State<_PipIntroBubble> createState() => _PipIntroBubbleState();
@@ -351,9 +354,9 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
           AnimatedBuilder(
             animation: _chars,
             builder: (_, _) {
-              const style = TextStyle(
+              final style = TextStyle(
                 color: AppColors.ink,
-                fontSize: 17,
+                fontSize: widget.fontSize,
                 fontWeight: FontWeight.w600,
                 height: 1.4,
               );
@@ -395,10 +398,12 @@ class _PipIntroBubbleState extends State<_PipIntroBubble>
 class _PipSpeechRow extends StatelessWidget {
   final List<String> lines;
   final Color textColor;
+  final double fontSize;
   const _PipSpeechRow({
     super.key,
     required this.lines,
     this.textColor = AppColors.ink,
+    this.fontSize = 17,
   });
 
   @override
@@ -425,7 +430,13 @@ class _PipSpeechRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Expanded(child: _TailedPipBubble(lines: lines, textColor: textColor)),
+        Expanded(
+          child: _TailedPipBubble(
+            lines: lines,
+            textColor: textColor,
+            fontSize: fontSize,
+          ),
+        ),
       ],
     );
   }
@@ -434,7 +445,12 @@ class _PipSpeechRow extends StatelessWidget {
 class _TailedPipBubble extends StatefulWidget {
   final List<String> lines;
   final Color textColor;
-  const _TailedPipBubble({required this.lines, this.textColor = AppColors.ink});
+  final double fontSize;
+  const _TailedPipBubble({
+    required this.lines,
+    this.textColor = AppColors.ink,
+    this.fontSize = 17,
+  });
 
   @override
   State<_TailedPipBubble> createState() => _TailedPipBubbleState();
@@ -497,7 +513,7 @@ class _TailedPipBubbleState extends State<_TailedPipBubble>
               builder: (_, _) {
                 final style = TextStyle(
                   color: widget.textColor,
-                  fontSize: 17,
+                  fontSize: widget.fontSize,
                   fontWeight: FontWeight.w600,
                   height: 1.4,
                 );
@@ -1585,6 +1601,7 @@ class _Step21BuildingPlanState extends State<Step21BuildingPlan>
                       Spacer(flex: 2),
                       _PipSpeechRow(
                         textColor: Colors.black,
+                        fontSize: 22,
                         lines: [
                           "Hang tight! I'm building your personalized plan.",
                         ],
@@ -1870,6 +1887,7 @@ class Step22OneMinuteADay extends StatelessWidget {
             _PipIntroBubble(
               key: ValueKey(line),
               lines: [line],
+              fontSize: 22,
             ),
             const SizedBox(height: 22),
             Container(
@@ -1902,7 +1920,7 @@ class Step22OneMinuteADay extends StatelessWidget {
   }
 }
 
-// 23. Three days free — Pip pitch
+// 23. Three days free — Pip pitch over a live lockscreen demo of the widget.
 class Step23ThreeDaysFree extends StatelessWidget {
   final StepCallbacks cb;
   const Step23ThreeDaysFree({super.key, required this.cb});
@@ -1910,49 +1928,250 @@ class Step23ThreeDaysFree extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = OnboardingScope.of(context).name.trim();
     final line = name.isEmpty
-        ? 'We offer 3 days for free so you can see the results of daily vocabulary learning.'
+        ? 'Your first 3 days are on me — see what daily vocabulary can do for you.'
         : '$name, your first 3 days are on me — see what daily vocabulary can do for you.';
+    // Cycle the words from the topics the user just chose (falling back to all),
+    // keeping definitions short enough to read at a glance on the widget.
+    final followed = TopicsScope.of(context).followed;
+    var pool = (followed.isNotEmpty ? WordsData.forTopics(followed) : WordsData.all)
+        .where((w) => w.definition.length <= 78 && w.word.length <= 16)
+        .toList();
+    if (pool.isEmpty) pool = WordsData.all.toList();
+    pool.shuffle(math.Random(7));
+    final words = pool.take(24).toList();
     return OnboardingScaffold(
       progress: cb.progress,
       onBack: cb.back,
       onSkip: cb.skip,
       showSkip: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Spacer(flex: 1),
-            _PipIntroBubble(
-              key: ValueKey(line),
-              lines: [line],
+            _PipSpeechRow(key: ValueKey(line), lines: [line], fontSize: 18),
+            const SizedBox(height: 16),
+            Expanded(child: _MockLockscreen(words: words)),
+            const SizedBox(height: 14),
+            PrimaryButton(
+              label: 'Try it for free',
+              onPressed: cb.next,
+              color: AppColors.forestGreen,
             ),
-            const SizedBox(height: 22),
-            Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Brutal.borderColor,
-                  width: Brutal.borderWidth,
-                ),
-                boxShadow: Brutal.shadow(dx: 4, dy: 6),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Transform.scale(
-                scale: 1.25,
-                child: Image.asset(
-                  'assets/hero-image.png',
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const Spacer(flex: 2),
-            PrimaryButton(label: 'Try it for free', onPressed: cb.next),
           ],
         ),
       ),
+    );
+  }
+}
+
+// The iOS system font (San Francisco) so the mock clock/widget look real.
+const String _sfDisplay = '.SF Pro Display';
+const String _sfText = '.SF Pro Text';
+
+/// A mock of the TOP HALF of an iOS lockscreen — just the clock and a Professor
+/// Pip text widget beneath it. Full width (matching the bubble/button); the
+/// word changes every few seconds while the hour ticks 12 → 1 → 2 … alongside
+/// it, to show the everyday value of the lock-screen widget during onboarding.
+class _MockLockscreen extends StatefulWidget {
+  final List<Word> words;
+  const _MockLockscreen({required this.words});
+
+  @override
+  State<_MockLockscreen> createState() => _MockLockscreenState();
+}
+
+class _MockLockscreenState extends State<_MockLockscreen> {
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  static const _shadow = [Shadow(color: Colors.black38, blurRadius: 10)];
+
+  int _i = 0;
+  Timer? _timer;
+  late final int _startHour; // nearest hour (24h), e.g. 7:36 → 8
+  late final String _date;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _startHour = now.hour + (now.minute >= 30 ? 1 : 0);
+    _date = '${_weekdays[now.weekday - 1]} ${_months[now.month - 1]} ${now.day}';
+    // New word every 3 seconds; the hour ticks forward with it.
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || widget.words.isEmpty) return;
+      setState(() => _i++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final words = widget.words;
+    final word = words.isEmpty ? null : words[_i % words.length];
+    final hour24 = (_startHour + _i) % 24;
+    final hour = hour24 % 12 == 0 ? 12 : hour24 % 12; // 12-hour, on the hour
+
+    // Black phone frame with the real iPhone top corner radius and a bezel on
+    // the top/sides only — the bottom is left open so it reads as the screen
+    // continuing past a straight cut-off edge (just the top half of the phone).
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(52)),
+      ),
+      padding: const EdgeInsets.only(top: 7, left: 7, right: 7),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(46)),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  // A gradient built around #545AD2 (indigo).
+                  colors: [Color(0xFF6E74E6), Color(0xFF545AD2), Color(0xFF3A3F9E)],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 60, 22, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _date,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: _sfText,
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      shadows: _shadow,
+                    ),
+                  ),
+                  Text(
+                    '$hour:00',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: _sfDisplay,
+                      color: Colors.white,
+                      fontSize: 96,
+                      fontWeight: FontWeight.w700,
+                      height: 1.05,
+                      letterSpacing: -2,
+                      shadows: _shadow,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // The Pip text widget sits directly under the clock.
+                  SizedBox(
+                    height: 62,
+                    child: word == null
+                        ? null
+                        : AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 450),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.topLeft,
+                              children: [...previous, ?current],
+                            ),
+                            transitionBuilder: (child, anim) => FadeTransition(
+                              opacity: anim,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 0.18),
+                                  end: Offset.zero,
+                                ).animate(anim),
+                                child: child,
+                              ),
+                            ),
+                            child: _PipTextWidget(key: ValueKey(_i), word: word),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            // The Dynamic Island: a compact black pill (~126×37pt on a real
+            // ~393pt-wide screen ≈ 32% width), sitting ~11pt from the top.
+            Positioned(
+              top: 11,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: FractionallySizedBox(
+                  widthFactor: 0.32,
+                  child: AspectRatio(
+                    aspectRatio: 126 / 37,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The Professor Pip lock-screen text widget: the word, then "(pos) definition"
+/// — plain white text on the wallpaper, exactly as iOS renders a text widget.
+class _PipTextWidget extends StatelessWidget {
+  final Word word;
+  const _PipTextWidget({super.key, required this.word});
+
+  @override
+  Widget build(BuildContext context) {
+    const shadow = [Shadow(color: Colors.black38, blurRadius: 8)];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          word.word,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: _sfText,
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            shadows: shadow,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          '(${word.partOfSpeech}) ${word.definition}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFamily: _sfText,
+            color: Colors.white,
+            fontSize: 15,
+            height: 1.25,
+            fontWeight: FontWeight.w500,
+            shadows: shadow,
+          ),
+        ),
+      ],
     );
   }
 }
