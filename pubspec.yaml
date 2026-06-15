@@ -43,6 +43,7 @@ dependencies:
   timezone: ^0.9.4
   purchases_flutter: ^10.1.1
   purchases_ui_flutter: ^10.1.1
+  lottie: ^3.1.2
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,8 @@ flutter:
     - assets/personalizedplan.png
     - assets/lockscreen.png
     - assets/wordoftheday.png
+    - assets/gift.png
+    - assets/lottie/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

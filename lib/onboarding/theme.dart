@@ -17,6 +17,7 @@ class AppColors {
   static const accent = Color(0xFFE9D8A6);
   static const flame = Color(0xFFE85A2A);
   static const success = Color(0xFF4CAF7C);
+  static const forestGreen = Color(0xFF2E7D4A);
 }
 
 // Neo-brutalist hard shadow + thick border
@@ -28,7 +29,12 @@ class Brutal {
   ];
 }
 
-String get appFontFamily => GoogleFonts.fraunces().fontFamily!;
+/// The single source of truth for the app's serif typeface. Change this one
+/// Google Fonts family name to restyle the entire app's serif text — every
+/// helper below and the Material [TextTheme] are driven from it.
+const String appFontName = 'Lora';
+
+String get appFontFamily => GoogleFonts.getFont(appFontName).fontFamily!;
 
 TextStyle appText({
   double size = 16,
@@ -36,7 +42,8 @@ TextStyle appText({
   Color color = AppColors.ink,
   double? height,
 }) {
-  return GoogleFonts.fraunces(
+  return GoogleFonts.getFont(
+    appFontName,
     fontSize: size,
     fontWeight: weight,
     color: color,
@@ -45,7 +52,7 @@ TextStyle appText({
 }
 
 ThemeData buildOnboardingTheme() {
-  final base = GoogleFonts.frauncesTextTheme();
+  final base = GoogleFonts.getTextTheme(appFontName);
   return ThemeData(
     useMaterial3: true,
     fontFamily: appFontFamily,

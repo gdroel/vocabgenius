@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'theme.dart';
 
 class OnboardingScaffold extends StatelessWidget {
@@ -90,25 +91,53 @@ class PrimaryButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool enabled;
+  // Fill color; defaults to the primary. Pass e.g. forest green for the paywall.
+  final Color color;
+  // When true the button gently scales in and out to draw the eye to it.
+  final bool pulse;
   const PrimaryButton({
     super.key,
     required this.label,
     required this.onPressed,
     this.enabled = true,
+    this.color = AppColors.teal,
+    this.pulse = false,
   });
 
   @override
   State<PrimaryButton> createState() => _PrimaryButtonState();
 }
 
-class _PrimaryButtonState extends State<PrimaryButton> {
+class _PrimaryButtonState extends State<PrimaryButton>
+    with SingleTickerProviderStateMixin {
   bool _down = false;
+
+  late final AnimationController _pulseCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  late final Animation<double> _pulseScale =
+      Tween<double>(begin: 1.0, end: 1.035).animate(
+    CurvedAnimation(parent: _pulseCtl, curve: Curves.easeInOut),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pulse) _pulseCtl.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseCtl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final active = widget.enabled && widget.onPressed != null;
     final pressed = _down && active;
-    return GestureDetector(
+    final button = GestureDetector(
       onTapDown: (_) => setState(() => _down = true),
       onTapCancel: () => setState(() => _down = false),
       onTapUp: (_) => setState(() => _down = false),
@@ -124,8 +153,8 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         height: 64,
         decoration: BoxDecoration(
           color: active
-              ? AppColors.teal
-              : AppColors.teal.withValues(alpha: 0.45),
+              ? widget.color
+              : widget.color.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(36),
           border: Border.all(
             color: Brutal.borderColor,
@@ -136,14 +165,18 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         alignment: Alignment.center,
         child: Text(
           widget.label,
-          style: const TextStyle(
+          // Inter (not the app serif, which caps at weight 700) so the CTA
+          // label renders genuinely heavy.
+          style: GoogleFonts.inter(
             color: Colors.white,
-            fontSize: 19,
+            fontSize: 22,
             fontWeight: FontWeight.w800,
           ),
         ),
       ),
     );
+    if (!widget.pulse) return button;
+    return ScaleTransition(scale: _pulseScale, child: button);
   }
 }
 
