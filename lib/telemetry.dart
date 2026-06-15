@@ -66,7 +66,13 @@ class Telemetry {
   /// event value.
   static void nameEntered(String name) => _send('name_entered', value: name);
 
-  static Future<void> _send(String event, {String? value}) async {
+  /// An onboarding step was completed. [step] is the step's screen name (e.g.
+  /// "Onboarding-13-VocabLevel") and [value], when present, is what the user
+  /// selected on it (a choice, or a comma-joined list of choices).
+  static void onboardingStep(String step, {String? value}) =>
+      _send('onboarding_step', value: value, step: step);
+
+  static Future<void> _send(String event, {String? value, String? step}) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.
     final userId = await BillingService.currentAppUserId();
@@ -82,6 +88,7 @@ class Telemetry {
         'environment': environment,
       };
       if (value != null) body['value'] = value;
+      if (step != null) body['step'] = step;
       request.write(jsonEncode(body));
       final response = await request.close();
       await response.drain<void>();

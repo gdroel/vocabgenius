@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../billing/billing_service.dart';
 import '../home/home_screen.dart';
 import '../notifications/notifications_service.dart';
+import '../telemetry.dart';
+import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
 import '../user_profile.dart';
 import 'state.dart';
@@ -48,6 +50,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   void _next() {
     FocusManager.instance.primaryFocus?.unfocus();
+    // Report the step the user is leaving as completed, with what they picked.
+    _reportStep(_index);
     if (_index < _steps.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 280),
@@ -56,6 +60,38 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     } else {
       _finish();
     }
+  }
+
+  /// Send a completed onboarding step (and the user's selection on it) to the
+  /// telemetry server. Best-effort; never blocks the flow.
+  void _reportStep(int index) {
+    Telemetry.onboardingStep(_steps[index].$1, value: _stepValue(index));
+  }
+
+  /// The user's selection on the step at [index], as a display string, or null
+  /// for steps with nothing to capture.
+  String? _stepValue(int index) {
+    final name = _steps[index].$1;
+    String? joined(Set<String> s) => s.isEmpty ? null : s.join(', ');
+    if (name.contains('Name')) {
+      final n = _data.name.trim();
+      return n.isEmpty ? null : n;
+    }
+    if (name.contains('Categories')) {
+      final titles = {for (final t in TopicsCatalog.all) t.id: t.title};
+      final followed = TopicsScope.of(context).followed;
+      if (followed.isEmpty) return null;
+      return followed.map((id) => titles[id] ?? id).join(', ');
+    }
+    if (name.contains('Curiosity')) return _data.curiosity;
+    if (name.contains('VocabLevel')) return _data.vocabularyLevel;
+    if (name.contains('EncounterFreq')) return _data.encounterFrequency;
+    if (name.contains('SelfDescription')) return _data.selfDescription;
+    if (name.contains('WeakSpots')) return joined(_data.weakSpots);
+    if (name.contains('BeginnerWords')) return joined(_data.beginnerKnown);
+    if (name.contains('IntermediateWords')) return joined(_data.intermediateKnown);
+    if (name.contains('AdvancedWords')) return joined(_data.advancedKnown);
+    return null;
   }
 
   void _back() {

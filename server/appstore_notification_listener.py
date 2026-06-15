@@ -77,6 +77,9 @@ CLIENT_EVENT_TYPES = {
     "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
     "annual_trial_started": {"label": "Started annual trial", "icon": "🎁"},
     "monthly_started": {"label": "Started monthly plan", "icon": "⭐"},
+    # A completed onboarding step. Carries `step` (the screen name) and an
+    # optional `value` (what the user picked); both are stored on the event.
+    "onboarding_step": {"label": "Onboarding step", "icon": "📝"},
 }
 
 
@@ -288,11 +291,19 @@ def recent_notifications():
     return [r["data"] for r in rows]  # newest first; jsonb decodes to dict
 
 
-def store_client_event(user_id, event, environment="unknown"):
+def store_client_event(user_id, event, environment="unknown", value=None, step=None):
     meta = CLIENT_EVENT_TYPES[event]
+    # Build a readable feed label: prefer "Step → selection" for onboarding
+    # steps, fall back to "Event: value", else the plain event label.
+    if step:
+        label = f"{step} → {value}" if value else step
+    elif value:
+        label = f"{meta['label']}: {value}"
+    else:
+        label = meta["label"]
     record = {
         "event": event,
-        "label": meta["label"],
+        "label": label,
         "icon": meta["icon"],
         # "sandbox" (our Xcode/TestFlight testing) vs "production" (real App
         # Store users) — mirrors Apple's notification environment so the feed
@@ -301,11 +312,15 @@ def store_client_event(user_id, event, environment="unknown"):
         "environment": environment,
         "received_at": datetime.now(tz=timezone.utc).isoformat(),
     }
+    if value is not None:
+        record["value"] = value
+    if step is not None:
+        record["step"] = step
     db_exec(
         "INSERT INTO client_events(received_at, user_id, event, data) VALUES(%s, %s, %s, %s)",
         (record["received_at"], user_id, event, psycopg2.extras.Json(record)),
     )
-    print(f"{meta['icon']}  [client/{environment}] {user_id}: {meta['label']}")
+    print(f"{meta['icon']}  [client/{environment}] {user_id}: {label}")
     sys.stdout.flush()
     return record
 
@@ -688,7 +703,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             user_id = (body.get("userId") or "anonymous").strip() or "anonymous"
             environment = (body.get("environment") or "unknown").strip() or "unknown"
-            store_client_event(user_id, event, environment)
+            value = body.get("value")
+            step = body.get("step")
+            store_client_event(user_id, event, environment, value=value, step=step)
             self._reply(200, "ok")
             return
 
