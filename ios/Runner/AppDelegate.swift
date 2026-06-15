@@ -181,6 +181,19 @@ import FBSDKCoreKit
           WidgetCenter.shared.reloadAllTimelines()
         }
         result(nil)
+      case "storeEnvironment":
+        // "sandbox" for Xcode/TestFlight builds, "production" for the App Store.
+        // Mirrors the Sandbox/Production environment Apple stamps on its server
+        // notifications so client telemetry can be filtered to real users. The
+        // App Store receipt's filename is the canonical signal — "sandboxReceipt"
+        // in sandbox, "receipt" in production — and #if DEBUG short-circuits
+        // Xcode runs that may not have a receipt URL yet.
+        #if DEBUG
+        result("sandbox")
+        #else
+        let isSandbox = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+        result(isSandbox ? "sandbox" : "production")
+        #endif
       case "requestAppReview":
         // System decides whether to actually surface the prompt (rate-limited
         // by Apple to a few times a year); calling it is always safe.

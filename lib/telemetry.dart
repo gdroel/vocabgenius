@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+
 import 'billing/billing_service.dart';
 
 /// Fire-and-forget product telemetry to the pipserver dashboard.
@@ -12,6 +15,31 @@ class Telemetry {
   Telemetry._();
 
   static const String _baseUrl = 'https://vocabgenius-vx2s.onrender.com';
+
+  // Reuses the widget method channel to ask native iOS which StoreKit
+  // environment this build runs in — "sandbox" for Xcode/TestFlight, "production"
+  // for the App Store. This is the same Sandbox/Production split Apple stamps on
+  // its server notifications, so the dashboard can filter client telemetry down
+  // to real users instead of our own testing.
+  static const MethodChannel _channel = MethodChannel('professor_pip/widget');
+
+  // Resolved once and cached — the environment can't change within a run.
+  static String? _environment;
+
+  static Future<String> _resolveEnvironment() async {
+    final cached = _environment;
+    if (cached != null) return cached;
+    // Build mode is the fallback when the native channel is unavailable (e.g.
+    // Android) or the call fails: release builds map to production, else sandbox.
+    final fallback = kReleaseMode ? 'production' : 'sandbox';
+    String env;
+    try {
+      env = await _channel.invokeMethod<String>('storeEnvironment') ?? fallback;
+    } catch (_) {
+      env = fallback;
+    }
+    return _environment = env;
+  }
 
   /// The app was launched (RevenueCat is configured by this point).
   static void appOpened() => _send('app_opened');
@@ -42,12 +70,17 @@ class Telemetry {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.
     final userId = await BillingService.currentAppUserId();
+    final environment = await _resolveEnvironment();
     try {
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 5);
       final request = await client.postUrl(Uri.parse('$_baseUrl/client-event'));
       request.headers.contentType = ContentType.json;
-      final body = <String, dynamic>{'userId': userId, 'event': event};
+      final body = <String, dynamic>{
+        'userId': userId,
+        'event': event,
+        'environment': environment,
+      };
       if (value != null) body['value'] = value;
       request.write(jsonEncode(body));
       final response = await request.close();

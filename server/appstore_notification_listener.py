@@ -288,19 +288,24 @@ def recent_notifications():
     return [r["data"] for r in rows]  # newest first; jsonb decodes to dict
 
 
-def store_client_event(user_id, event):
+def store_client_event(user_id, event, environment="unknown"):
     meta = CLIENT_EVENT_TYPES[event]
     record = {
         "event": event,
         "label": meta["label"],
         "icon": meta["icon"],
+        # "sandbox" (our Xcode/TestFlight testing) vs "production" (real App
+        # Store users) — mirrors Apple's notification environment so the feed
+        # and funnels can exclude our own testing. "unknown" for older clients
+        # that predate this field.
+        "environment": environment,
         "received_at": datetime.now(tz=timezone.utc).isoformat(),
     }
     db_exec(
         "INSERT INTO client_events(received_at, user_id, event, data) VALUES(%s, %s, %s, %s)",
         (record["received_at"], user_id, event, psycopg2.extras.Json(record)),
     )
-    print(f"{meta['icon']}  [client] {user_id}: {meta['label']}")
+    print(f"{meta['icon']}  [client/{environment}] {user_id}: {meta['label']}")
     sys.stdout.flush()
     return record
 
@@ -682,7 +687,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(400, json.dumps({"error": f"unknown event '{event}'"}), "application/json")
                 return
             user_id = (body.get("userId") or "anonymous").strip() or "anonymous"
-            store_client_event(user_id, event)
+            environment = (body.get("environment") or "unknown").strip() or "unknown"
+            store_client_event(user_id, event, environment)
             self._reply(200, "ok")
             return
 
