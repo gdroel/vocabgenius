@@ -351,14 +351,21 @@ class _WordCard extends StatelessWidget {
       children: [
         _TopicTag(topic: topic),
         const SizedBox(height: 22),
-        Text(
-          word,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 56,
-            fontWeight: FontWeight.w700,
-            color: AppColors.ink,
-            height: 1.05,
+        // Always keep the word on a single line — long words scale down to fit
+        // the available width rather than wrapping.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            word,
+            maxLines: 1,
+            softWrap: false,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+              height: 1.05,
+            ),
           ),
         ),
         const SizedBox(height: 12),
