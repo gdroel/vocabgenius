@@ -45,6 +45,9 @@
     border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
     padding: 12px 16px; margin-bottom: 10px;
   }
+  /* Derived free-trial events get a coloured left accent so they stand out. */
+  .card.trial { border-left: 3px solid #3fb950; }
+  .card.cancelled { border-left: 3px solid #f85149; }
   .card .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .card .type { font-weight: 700; }
   .card .sub { color: var(--muted); }
@@ -105,12 +108,16 @@
   <section id="view-notifications">
     <div class="toolbar">
       <span class="meta" id="count">0 events</span>
+      <span class="meta" id="trialStat">🎁 0 started · 🥀 0 cancelled</span>
       <label class="meta">show
         <select id="filter" onchange="renderNotifications(lastEvents)">
           <option value="all">all</option>
           <option value="Sandbox">sandbox</option>
           <option value="Production">production</option>
         </select>
+      </label>
+      <label class="meta">
+        <input type="checkbox" id="trialsOnly" onchange="renderNotifications(lastEvents)"> trials only
       </label>
     </div>
     <div id="feed"><div class="empty">Waiting for notifications…</div></div>
@@ -185,10 +192,21 @@ const ROWS = [
   ['transactionId', 'txn'], ['originalTransactionId', 'orig txn'],
   ['autoRenew', 'auto-renew'], ['bundleId', 'bundle'], ['revokeReason', 'revoke reason'],
 ];
+const LIFECYCLE_LABEL = {
+  TRIAL_STARTED: 'Trial started',
+  TRIAL_CANCELLED: 'Trial cancelled',
+};
 function renderNotifications(events) {
   lastEvents = events;
   const want = document.getElementById('filter').value;
-  const shown = want === 'all' ? events : events.filter(e => e.environment === want);
+  const trialsOnly = document.getElementById('trialsOnly').checked;
+  const envScoped = want === 'all' ? events : events.filter(e => e.environment === want);
+  const shown = trialsOnly ? envScoped.filter(e => e.lifecycle) : envScoped;
+  // Trial start/cancel counts (respect the environment filter).
+  const started = envScoped.filter(e => e.lifecycle === 'TRIAL_STARTED').length;
+  const cancelled = envScoped.filter(e => e.lifecycle === 'TRIAL_CANCELLED').length;
+  document.getElementById('trialStat').textContent =
+    `🎁 ${started} started · 🥀 ${cancelled} cancelled`;
   document.getElementById('count').textContent =
     shown.length + (shown.length === 1 ? ' event' : ' events') +
     (want === 'all' ? '' : ' · ' + want.toLowerCase());
@@ -198,11 +216,20 @@ function renderNotifications(events) {
     const fields = ROWS.filter(([k]) => e[k] !== null && e[k] !== undefined && e[k] !== '')
       .map(([k, label]) => `<div><span>${label}</span><code>${esc(e[k])}</code></div>`).join('');
     const env = e.environment || 'Unknown';
-    return `<div class="card">
+    // For a derived trial start/cancel, lead with that label and keep Apple's
+    // raw type/subtype as a secondary detail.
+    const life = LIFECYCLE_LABEL[e.lifecycle];
+    const lifeCls = e.lifecycle === 'TRIAL_CANCELLED' ? ' cancelled'
+      : e.lifecycle === 'TRIAL_STARTED' ? ' trial' : '';
+    const head = life
+      ? `<span class="type">${e.icon || ''} ${esc(life)}</span>
+         <span class="sub">/ ${esc(e.type)}${e.subtype ? ' · ' + esc(e.subtype) : ''}</span>`
+      : `<span class="type">${e.icon || ''} ${esc(e.type)}</span>
+         ${e.subtype ? `<span class="sub">/ ${esc(e.subtype)}</span>` : ''}`;
+    return `<div class="card${lifeCls}">
       <div class="top">
         <span class="badge ${envClass(env)}">${esc(env)}</span>
-        <span class="type">${e.icon || ''} ${esc(e.type)}</span>
-        ${e.subtype ? `<span class="sub">/ ${esc(e.subtype)}</span>` : ''}
+        ${head}
         <span class="time">${fmtTime(e.received_at)}</span>
       </div>
       ${e.note ? `<div class="note">→ ${esc(e.note)}</div>` : ''}
