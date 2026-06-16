@@ -100,6 +100,9 @@ class _SingleChoiceScreenState extends State<_SingleChoiceScreen> {
             const SizedBox(height: 32),
             Expanded(
               child: ListView.separated(
+                // Room so the tiles' hard shadow (offset down-right) isn't
+                // clipped by the list's edge.
+                padding: const EdgeInsets.fromLTRB(4, 2, 6, 8),
                 itemCount: widget.options.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (_, i) {
@@ -170,6 +173,9 @@ class _MultiChoiceScreenState extends State<_MultiChoiceScreen> {
             const SizedBox(height: 24),
             Expanded(
               child: ListView.separated(
+                // Room so the tiles' hard shadow (offset down-right) isn't
+                // clipped by the list's edge.
+                padding: const EdgeInsets.fromLTRB(4, 2, 6, 8),
                 itemCount: widget.options.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (_, i) {
@@ -1928,8 +1934,8 @@ class Step23ThreeDaysFree extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = OnboardingScope.of(context).name.trim();
     final line = name.isEmpty
-        ? 'Your first 3 days are on me — see what daily vocabulary can do for you.'
-        : '$name, your first 3 days are on me — see what daily vocabulary can do for you.';
+        ? 'Your first 3 days are on me, see what daily vocab can do for you!'
+        : '$name, your first 3 days are on me, see what daily vocab can do for you!';
     // Cycle the words from the topics the user just chose (falling back to all),
     // keeping definitions short enough to read at a glance on the widget.
     final followed = TopicsScope.of(context).followed;
