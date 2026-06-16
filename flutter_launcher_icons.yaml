@@ -1,5 +1,5 @@
 flutter_launcher_icons:
   ios: true
   android: false
-  image_path: "assets/professorpipgradient.png"
+  image_path: "assets/vocabgeniusiconv5.png"
   remove_alpha_ios: true
