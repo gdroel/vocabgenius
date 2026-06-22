@@ -13,6 +13,7 @@ import '../push_service.dart';
 import '../onboarding/widgets.dart';
 import '../telemetry.dart';
 import 'billing_service.dart';
+import 'legal_screen.dart';
 
 class PaywallScreen extends StatefulWidget {
   final VoidCallback onDismiss;
@@ -32,6 +33,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
   bool _wasPro = false;
   bool _reminderBeforeTrialEnds = false;
   bool _hardPaywall = false;
+  // App Store review mode: shows explicit annual pricing + functional legal /
+  // restore links, and closing the paywall just enters the app (no retention
+  // offer). Flip the "inreview" flag off for real users.
+  bool _inReview = false;
   // True while the special-offer popover is up: it drives its own purchase and
   // navigation, so the paywall's auto-onPurchased must stand down to avoid two
   // navigations fighting over the same route stack.
@@ -50,7 +55,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
         .then((enabled) {
           if (!mounted) return;
           setState(() => _hardPaywall = enabled);
-          if (enabled) _scheduleAutoOffer();
+          // Review mode never shows the retention offer (see _inReview).
+          if (enabled && !_inReview) _scheduleAutoOffer();
+        })
+        .catchError((_) {});
+    Posthog()
+        .isFeatureEnabled('inreview')
+        .then((enabled) {
+          if (!mounted) return;
+          if (enabled) _offerTimer?.cancel(); // no retention offer in review
+          setState(() => _inReview = enabled);
         })
         .catchError((_) {});
   }
@@ -63,7 +77,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
     _offerTimer = Timer(const Duration(seconds: 15), () {
       // Skip if we've navigated away, already converted, are mid-purchase, or
       // an offer popover is already up.
-      if (!mounted || _busy || _offerClaiming || (_billing?.isPro ?? false)) {
+      if (!mounted ||
+          _busy ||
+          _inReview ||
+          _offerClaiming ||
+          (_billing?.isPro ?? false)) {
         return;
       }
       _showSpecialOffer();
@@ -79,6 +97,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _billing = billing;
       _wasPro = billing.isPro;
       billing.addListener(_onBillingChange);
+      // Warm the annual product so review mode can show its real store price.
+      billing.loadAnnualPlan84();
     }
   }
 
@@ -97,6 +117,27 @@ class _PaywallScreenState extends State<PaywallScreen> {
       if (!_offerClaiming) widget.onPurchased();
     }
     if (mounted) setState(() {});
+  }
+
+  // Review-mode legal/restore actions.
+  Future<void> _restore() async {
+    final billing = _billing;
+    if (billing == null) return;
+    setState(() => _busy = true);
+    try {
+      await billing.restore();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _openLegal(String title, String body) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: 'LegalScreen-$title'),
+        builder: (_) => LegalScreen(title: title, body: body),
+      ),
+    );
   }
 
   Future<void> _buy() async {
@@ -161,13 +202,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    // The pitch as styled runs so the weekly price renders bold inside the
-    // bubble: "Try 3 days for free, then just $1.62 a week!".
-    final headlineSegments = <(String, bool)>[
-      ('Try 3 days for free, then just ', false),
-      ('\$1.62 a week!', true),
-      ('\n(billed annually)', false),
-    ];
+    final annualPrice = billing?.annualPlan84PriceLabel ?? '\$83.99';
+    // Normal mode bolds the weekly price. Review mode instead bolds the explicit
+    // annual charge for App Store reviewers (and leaves the weekly line plain).
+    final headlineSegments = _inReview
+        ? <(String, bool)>[
+            ('Try 3 days for free, then just \$1.62 a week!', false),
+            ('\n(billed annually as $annualPrice per year)', true),
+          ]
+        : <(String, bool)>[
+            ('Try 3 days for free, then just ', false),
+            ('\$1.62 a week!', true),
+            ('\n(billed annually)', false),
+          ];
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -182,7 +229,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   alignment: Alignment.centerLeft,
                   // In hard-paywall mode there's no plain dismiss; instead a
                   // conspicuous round X reveals a one-time discounted offer.
-                  child: _hardPaywall
+                  // Review mode always allows a plain dismiss into the app.
+                  child: (_hardPaywall && !_inReview)
                       ? _RoundCloseButton(onTap: _showSpecialOffer)
                       : _CloseButton(onTap: widget.onDismiss),
                 ),
@@ -219,7 +267,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      _PipBubble(segments: headlineSegments, tailOnTop: true),
+                      _PipBubble(
+                        // Re-key when the copy changes (review flag flips / price
+                        // resolves) so the type-out animation restarts and always
+                        // reaches the end instead of freezing mid-word.
+                        key: ValueKey(headlineSegments.map((s) => s.$1).join()),
+                        segments: headlineSegments,
+                        tailOnTop: true,
+                      ),
                     ],
                   ),
                 ),
@@ -251,11 +306,33 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 pulse: true,
               ),
               const SizedBox(height: 20),
-              Text(
-                'No payment due today, cancel anytime!',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.ink, fontSize: 16),
-              ),
+              if (_inReview)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _LegalLink(
+                      label: 'Privacy',
+                      onTap: () => _openLegal('Privacy policy', privacyPolicyBody),
+                    ),
+                    const _LegalDot(),
+                    _LegalLink(
+                      label: 'Terms of Service',
+                      onTap: () =>
+                          _openLegal('Terms of service', termsOfServiceBody),
+                    ),
+                    const _LegalDot(),
+                    _LegalLink(
+                      label: 'Restore',
+                      onTap: _busy ? null : _restore,
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  'No payment due today, cancel anytime!',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.ink, fontSize: 16),
+                ),
             ],
           ),
         ),
@@ -604,7 +681,7 @@ class _PipBubble extends StatefulWidget {
   // When true the tail points up (Pip sits above a full-width bubble); otherwise
   // it points left (Pip sits beside the bubble).
   final bool tailOnTop;
-  const _PipBubble({this.text, this.segments, this.tailOnTop = false})
+  const _PipBubble({super.key, this.text, this.segments, this.tailOnTop = false})
     : assert(
         text != null || segments != null,
         'Provide either text or segments',
@@ -850,6 +927,41 @@ class _SpeechBubblePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SpeechBubblePainter oldDelegate) =>
       oldDelegate.tailOnTop != tailOnTop;
+}
+
+/// A tappable legal/restore link shown under the CTA in App Store review mode.
+class _LegalLink extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  const _LegalLink({required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.ink,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalDot extends StatelessWidget {
+  const _LegalDot();
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10),
+        child: Text('·', style: TextStyle(color: AppColors.muted, fontSize: 14)),
+      );
 }
 
 class _CloseButton extends StatelessWidget {
