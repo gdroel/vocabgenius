@@ -39,6 +39,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -77,6 +78,7 @@ CLIENT_EVENT_TYPES = {
     "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
     "annual_trial_started": {"label": "Started annual trial", "icon": "🎁"},
     "monthly_started": {"label": "Started monthly plan", "icon": "⭐"},
+    "lifetime_purchased": {"label": "Bought lifetime", "icon": "💎"},
     # A completed onboarding step. Carries `step` (the screen name) and an
     # optional `value` (what the user picked); both are stored on the event.
     "onboarding_step": {"label": "Onboarding step", "icon": "📝"},
@@ -353,6 +355,108 @@ def customer_timeline(user_id):
         (user_id,), fetch="all",
     )
     return [r["data"] for r in rows]  # chronological (oldest first)
+
+
+# Events that mean the user paid (so they should NOT be re-targeted). The
+# monthly/lifetime offers are what the push drives; an annual trial counts as
+# "already a customer" too.
+PURCHASE_EVENTS = ("monthly_started", "lifetime_purchased", "annual_trial_started")
+# The two events the offer push can produce.
+OFFER_PURCHASE_EVENTS = ("monthly_started", "lifetime_purchased")
+
+
+def _offer_from_label(label):
+    """Pull the '(monthly)'/'(lifetime)' suffix send_push() stamps on the label."""
+    match = re.search(r"\(([^)]*)\)\s*$", label or "")
+    return match.group(1) if match else ""
+
+
+def converted_customers():
+    """Customers who were sent an offer push and then completed the offer.
+
+    A conversion counts only when a monthly/lifetime purchase event lands at or
+    after one of that customer's notification_sent events — i.e. the push could
+    plausibly have driven it. Returns one row per converting customer.
+    """
+    rows = db_exec(
+        "SELECT user_id, event, received_at, data FROM client_events "
+        "WHERE event IN ('notification_sent', 'monthly_started', 'lifetime_purchased') "
+        "ORDER BY user_id, received_at ASC",
+        fetch="all",
+    )
+    by_user = {}
+    for r in rows:
+        by_user.setdefault(r["user_id"], []).append(r)
+    result = []
+    for uid, evs in by_user.items():
+        sends = [e for e in evs if e["event"] == "notification_sent"]
+        if not sends:
+            continue
+        conv = matched = None
+        for e in evs:
+            if e["event"] not in OFFER_PURCHASE_EVENTS:
+                continue
+            prior = [s for s in sends if s["received_at"] <= e["received_at"]]
+            if prior:
+                conv, matched = e, prior[-1]
+                break  # earliest post-notification conversion
+        if not conv:
+            continue
+        data = conv["data"] or {}
+        result.append({
+            "userId": uid,
+            "environment": data.get("environment") or "unknown",
+            "notifiedAt": matched["received_at"],
+            "offer": _offer_from_label((matched["data"] or {}).get("label", "")),
+            "convertedAt": conv["received_at"],
+            "convertedEvent": conv["event"],
+            "convertedLabel": data.get("label") or conv["event"],
+            "notifyCount": len(sends),
+        })
+    result.sort(key=lambda x: x["convertedAt"], reverse=True)
+    return result
+
+
+def reengage_customers():
+    """Re-engagement targets: reached the paywall, never paid, push-reachable.
+
+    'Push-reachable' means we hold a live APNs device token for them (a token is
+    pruned when Apple reports it unregistered), so a 'similar message' can
+    actually be delivered. Sorted most-recent-paywall first.
+    """
+    rows = db_exec(
+        "SELECT user_id, event, received_at, data FROM client_events "
+        "WHERE event IN ('paywall_reached', 'monthly_started', 'lifetime_purchased', "
+        "'annual_trial_started', 'notifications_enabled', 'notification_sent') "
+        "ORDER BY user_id, received_at ASC",
+        fetch="all",
+    )
+    token_rows = db_exec("SELECT DISTINCT user_id FROM device_tokens", fetch="all")
+    token_users = {r["user_id"] for r in token_rows}
+    by_user = {}
+    for r in rows:
+        by_user.setdefault(r["user_id"], []).append(r)
+    result = []
+    for uid, evs in by_user.items():
+        kinds = {e["event"] for e in evs}
+        if "paywall_reached" not in kinds:
+            continue
+        if kinds & set(PURCHASE_EVENTS):
+            continue  # already a customer
+        if uid not in token_users:
+            continue  # no live token — a push wouldn't land
+        paywalls = [e for e in evs if e["event"] == "paywall_reached"]
+        last_pw = paywalls[-1]
+        result.append({
+            "userId": uid,
+            "environment": (last_pw["data"] or {}).get("environment") or "unknown",
+            "paywallCount": len(paywalls),
+            "lastPaywallAt": last_pw["received_at"],
+            "notifyCount": sum(1 for e in evs if e["event"] == "notification_sent"),
+            "enabledCount": sum(1 for e in evs if e["event"] == "notifications_enabled"),
+        })
+    result.sort(key=lambda x: x["lastPaywallAt"], reverse=True)
+    return result
 
 
 # ---- Push notifications (APNs) -------------------------------------------
@@ -632,6 +736,10 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200, json.dumps(recent_notifications()), "application/json")
         elif self.path == "/customers":
             self._reply(200, json.dumps(customers_summary()), "application/json")
+        elif self.path == "/converted":
+            self._reply(200, json.dumps(converted_customers()), "application/json")
+        elif self.path == "/reengage":
+            self._reply(200, json.dumps(reengage_customers()), "application/json")
         elif self.path.split("?")[0] == "/customer":
             user_id = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             self._reply(200, json.dumps(customer_timeline(user_id)), "application/json")

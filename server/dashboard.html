@@ -100,6 +100,8 @@
 <div class="tabs">
   <div class="tab active" id="tab-notifications" onclick="switchTab('notifications')">Notifications</div>
   <div class="tab" id="tab-customers" onclick="switchTab('customers')">Customers</div>
+  <div class="tab" id="tab-converted" onclick="switchTab('converted')">✅ Converted</div>
+  <div class="tab" id="tab-reengage" onclick="switchTab('reengage')">🎯 Re-engage</div>
 </div>
 <div id="status"></div>
 
@@ -131,6 +133,44 @@
       <div id="custDetail"><div class="empty">Select a customer to see their timeline.</div></div>
     </div>
   </section>
+
+  <!-- Converted: sent an offer push, then went through with it -->
+  <section id="view-converted" style="display:none">
+    <div class="toolbar">
+      <span class="meta" id="convCount">0 converted</span>
+      <label class="meta">show
+        <select id="convFilter" onchange="renderConverted(lastConverted)">
+          <option value="all">all</option>
+          <option value="production">production</option>
+          <option value="sandbox">sandbox</option>
+        </select>
+      </label>
+      <span class="meta">customers who bought at/after an offer notification</span>
+    </div>
+    <div class="cust-layout">
+      <div class="cust-list" id="convList"><div class="empty">No conversions yet…</div></div>
+      <div id="convDetail"><div class="empty">Select a customer to see their timeline.</div></div>
+    </div>
+  </section>
+
+  <!-- Re-engage: reached paywall, never paid, push-reachable -->
+  <section id="view-reengage" style="display:none">
+    <div class="toolbar">
+      <span class="meta" id="reCount">0 targets</span>
+      <label class="meta">show
+        <select id="reFilter" onchange="renderReengage(lastReengage)">
+          <option value="all">all</option>
+          <option value="production">production</option>
+          <option value="sandbox">sandbox</option>
+        </select>
+      </label>
+      <span class="meta">reached paywall · never bought · notifications on — pick one to send a similar offer</span>
+    </div>
+    <div class="cust-layout">
+      <div class="cust-list" id="reList"><div class="empty">No targets yet…</div></div>
+      <div id="reDetail"><div class="empty">Select a customer to send them an offer.</div></div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -138,15 +178,21 @@ const statusEl = document.getElementById('status');
 const buttons = [document.getElementById('btnSandbox'), document.getElementById('btnProd')];
 let lastEvents = [];
 let lastCustomers = [];
+let lastConverted = [];
+let lastReengage = [];
 let selectedCustomer = null;
+let selectedDetailId = 'custDetail'; // which panel the open timeline renders into
 let activeTab = 'notifications';
+
+const TABS = ['notifications', 'customers', 'converted', 'reengage'];
 
 function switchTab(tab) {
   activeTab = tab;
-  document.getElementById('tab-notifications').classList.toggle('active', tab === 'notifications');
-  document.getElementById('tab-customers').classList.toggle('active', tab === 'customers');
-  document.getElementById('view-notifications').style.display = tab === 'notifications' ? '' : 'none';
-  document.getElementById('view-customers').style.display = tab === 'customers' ? '' : 'none';
+  selectedCustomer = null; // each tab's detail panel starts fresh
+  TABS.forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('view-' + t).style.display = t === tab ? '' : 'none';
+  });
   poll();
 }
 
@@ -264,13 +310,71 @@ function renderCustomers(customers) {
   }).join('');
 }
 
+/* ---- Converted (sent an offer push, then bought) ---- */
+function renderConverted(list) {
+  lastConverted = list;
+  const want = document.getElementById('convFilter').value;
+  const shown = want === 'all' ? list : list.filter(c => (c.environment || 'unknown') === want);
+  document.getElementById('convCount').textContent =
+    shown.length + (shown.length === 1 ? ' converted' : ' converted') +
+    (want === 'all' ? '' : ' · ' + want);
+  const el = document.getElementById('convList');
+  if (!shown.length) { el.innerHTML = '<div class="empty">No conversions yet…</div>'; return; }
+  el.innerHTML = shown.map(c => {
+    const env = c.environment || 'unknown';
+    const what = c.convertedEvent === 'lifetime_purchased' ? '⭐ lifetime' : '⭐ monthly';
+    return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
+                 onclick="selectCustomer('${esc(c.userId)}','convDetail')">
+      <div class="id">${esc(c.userId)}</div>
+      <div class="row">
+        <span class="badge ${envClass(cap(env))}">${esc(env)}</span>
+        <span class="pill">📤 ${esc(c.offer || 'offer')}</span>
+        <span class="pill">${what}</span>
+        <span style="margin-left:auto">${c.convertedAt ? fmtTime(c.convertedAt) : ''}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---- Re-engage (paywall, no purchase, push-reachable) ---- */
+function renderReengage(list) {
+  lastReengage = list;
+  const want = document.getElementById('reFilter').value;
+  const shown = want === 'all' ? list : list.filter(c => (c.environment || 'unknown') === want);
+  document.getElementById('reCount').textContent =
+    shown.length + (shown.length === 1 ? ' target' : ' targets') +
+    (want === 'all' ? '' : ' · ' + want);
+  const el = document.getElementById('reList');
+  if (!shown.length) { el.innerHTML = '<div class="empty">No targets yet…</div>'; return; }
+  el.innerHTML = shown.map(c => {
+    const env = c.environment || 'unknown';
+    const notified = c.notifyCount
+      ? `<span class="pill" title="already sent ${c.notifyCount} push(es)">📤 ${c.notifyCount}</span>` : '';
+    return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
+                 onclick="selectCustomer('${esc(c.userId)}','reDetail')">
+      <div class="id">${esc(c.userId)}</div>
+      <div class="row">
+        <span class="badge ${envClass(cap(env))}">${esc(env)}</span>
+        <span class="pill">💳 ${c.paywallCount}</span>
+        ${notified}
+        <span style="margin-left:auto">${c.lastPaywallAt ? fmtTime(c.lastPaywallAt) : ''}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// envClass expects Apple's capitalised form ("Sandbox"); client events store
+// lowercase ("sandbox"), so normalise before reusing the badge styling.
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
 // Build the customer detail ONCE on selection. The send box is never
 // re-rendered by polling (that was wiping the text you typed); only the
 // timeline list refreshes, in place.
-function selectCustomer(id) {
+function selectCustomer(id, detailId = 'custDetail') {
   selectedCustomer = id;
-  renderCustomers(lastCustomers); // refresh active highlight
-  document.getElementById('custDetail').innerHTML = `
+  selectedDetailId = detailId;
+  rerenderActiveList(); // refresh active highlight in whichever list is showing
+  document.getElementById(detailId).innerHTML = `
     <div class="card" style="margin-bottom:12px">
       <div class="id" style="font-family:ui-monospace,Menlo,monospace">${esc(id)}</div>
     </div>
@@ -290,6 +394,13 @@ function selectCustomer(id) {
     </div>
     <div class="timeline" id="tlContainer"><div class="empty" style="padding:16px">Loading…</div></div>`;
   refreshTimeline(id);
+}
+
+// Re-highlight the selected row in whichever customer list is currently visible.
+function rerenderActiveList() {
+  if (activeTab === 'customers') renderCustomers(lastCustomers);
+  else if (activeTab === 'converted') renderConverted(lastConverted);
+  else if (activeTab === 'reengage') renderReengage(lastReengage);
 }
 
 async function refreshTimeline(id) {
@@ -345,6 +456,14 @@ async function poll() {
     if (activeTab === 'notifications') {
       const res = await fetch('/events');
       renderNotifications(await res.json());
+    } else if (activeTab === 'converted') {
+      const res = await fetch('/converted');
+      renderConverted(await res.json());
+      if (selectedCustomer) refreshTimeline(selectedCustomer);
+    } else if (activeTab === 'reengage') {
+      const res = await fetch('/reengage');
+      renderReengage(await res.json());
+      if (selectedCustomer) refreshTimeline(selectedCustomer);
     } else {
       const res = await fetch('/customers');
       renderCustomers(await res.json());
