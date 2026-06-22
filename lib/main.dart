@@ -9,6 +9,7 @@ import 'notifications/notifications_service.dart';
 import 'onboarding/flow.dart';
 import 'onboarding/theme.dart';
 import 'push_service.dart';
+import 'telemetry.dart';
 import 'topics/topics_repository.dart';
 import 'user_profile.dart';
 import 'widget_preferences.dart';
@@ -56,7 +57,7 @@ void main() async {
   Posthog().reloadFeatureFlags().catchError((_) {});
 }
 
-class ProfessorPipApp extends StatelessWidget {
+class ProfessorPipApp extends StatefulWidget {
   final TopicsRepository topicsRepo;
   final BillingService billing;
   final BookmarksRepository bookmarks;
@@ -72,13 +73,41 @@ class ProfessorPipApp extends StatelessWidget {
   });
 
   @override
+  State<ProfessorPipApp> createState() => _ProfessorPipAppState();
+}
+
+class _ProfessorPipAppState extends State<ProfessorPipApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // `paused` = the app left the foreground (home button, app switcher, or the
+    // user closing it). The closest signal we can reliably send on, since
+    // `detached` (true termination) rarely leaves time for a network call.
+    if (state == AppLifecycleState.paused) {
+      Telemetry.appClosed();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TopicsScope(
-      repo: topicsRepo,
+      repo: widget.topicsRepo,
       child: BillingScope(
-        service: billing,
+        service: widget.billing,
         child: BookmarksScope(
-          repo: bookmarks,
+          repo: widget.bookmarks,
           child: MaterialApp(
             title: 'Professor Pip',
             debugShowCheckedModeBanner: false,
@@ -94,12 +123,12 @@ class ProfessorPipApp extends StatelessWidget {
             // CustomerInfo listener / the background refresh) and the root
             // re-gates to the paywall, instead of stranding the user in the app
             // until a future cold start. Likewise a purchase swaps in the app.
-            home: !onboardingCompleted
-                ? OnboardingFlow(initialStep: onboardingStep)
+            home: !widget.onboardingCompleted
+                ? OnboardingFlow(initialStep: widget.onboardingStep)
                 : ListenableBuilder(
-                    listenable: billing,
+                    listenable: widget.billing,
                     builder: (_, _) =>
-                        billing.isPro ? const HomeScreen() : _PaywallGate(),
+                        widget.billing.isPro ? const HomeScreen() : _PaywallGate(),
                   ),
           ),
         ),

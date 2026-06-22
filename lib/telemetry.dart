@@ -44,6 +44,10 @@ class Telemetry {
   /// The app was launched (RevenueCat is configured by this point).
   static void appOpened() => _send('app_opened');
 
+  /// The app was sent to the background — our best proxy for the user closing
+  /// it (iOS can't reliably deliver a network call on actual termination).
+  static void appClosed() => _send('app_closed');
+
   /// A paywall was shown to the user.
   static void paywallReached() => _send('paywall_reached');
 
