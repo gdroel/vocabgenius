@@ -184,9 +184,12 @@
           <option value="sandbox">sandbox</option>
         </select>
       </label>
-      <span class="meta">🥀 cancelled (oldest first) · 🎁 still-active trials at the bottom</span>
+      <span class="meta">🥀 cancelled (oldest first) · 🎁 still-active trials at the bottom · click to message</span>
     </div>
-    <div id="trialsFeed"><div class="empty">No trials yet…</div></div>
+    <div class="cust-layout">
+      <div class="cust-list" id="trialsList"><div class="empty">No trials yet…</div></div>
+      <div id="trialsDetail"><div class="empty">Select a trial to send them an offer.</div></div>
+    </div>
   </section>
 </main>
 
@@ -385,7 +388,7 @@ function renderReengage(list) {
 // lowercase ("sandbox"), so normalise before reusing the badge styling.
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
-/* ---- Trials (cancelled oldest-first, active at the bottom) ---- */
+/* ---- Trials (cancelled oldest-first, active at the bottom; click to message) ---- */
 function renderTrials(list) {
   lastTrials = list;
   const want = document.getElementById('trialsFilter').value;
@@ -394,33 +397,29 @@ function renderTrials(list) {
   const active = shown.length - cancelled;
   document.getElementById('trialsCount').textContent =
     `🥀 ${cancelled} cancelled · 🎁 ${active} active` + (want === 'all' ? '' : ' · ' + want);
-  const feed = document.getElementById('trialsFeed');
-  if (!shown.length) { feed.innerHTML = '<div class="empty">No trials yet…</div>'; return; }
+  const listEl = document.getElementById('trialsList');
+  if (!shown.length) { listEl.innerHTML = '<div class="empty">No trials yet…</div>'; return; }
   // The list arrives already ordered (cancelled oldest-first, then active); keep it.
-  feed.innerHTML = shown.map(t => {
+  listEl.innerHTML = shown.map(t => {
     const env = t.environment || 'unknown';
     const isCancelled = t.status === 'cancelled';
-    const cls = isCancelled ? ' cancelled' : ' trial';
-    const head = isCancelled
-      ? `<span class="type">🥀 Trial cancelled</span>`
-      : `<span class="type">🎁 Trial active</span>`;
-    const when = isCancelled
-      ? `cancelled ${fmtTime(t.cancelledAt)}`
-      : `started ${fmtTime(t.startedAt)}`;
-    const fields = [
-      t.startedAt ? `<div><span>started</span><code>${fmtTime(t.startedAt)}</code></div>` : '',
-      isCancelled && t.cancelledAt ? `<div><span>cancelled</span><code>${fmtTime(t.cancelledAt)}</code></div>` : '',
-      t.product ? `<div><span>product</span><code>${esc(t.product)}</code></div>` : '',
-      t.expires ? `<div><span>expires</span><code>${fmtTime(t.expires)}</code></div>` : '',
-      t.originalTransactionId ? `<div><span>txn</span><code>${esc(t.originalTransactionId)}</code></div>` : '',
-    ].join('');
-    return `<div class="card${cls}">
-      <div class="top">
+    const icon = isCancelled ? '🥀' : '🎁';
+    const when = isCancelled ? 'cancelled ' + fmtTime(t.cancelledAt) : 'started ' + fmtTime(t.startedAt);
+    // Only rows we could tie back to a RevenueCat user are sendable.
+    const sendable = !!t.userId;
+    const idLine = sendable
+      ? esc(t.userId)
+      : `<span style="color:var(--muted)">${icon} ${esc(t.originalTransactionId || 'trial')} · no linked user</span>`;
+    const onclick = sendable ? `onclick="selectCustomer('${esc(t.userId)}','trialsDetail')"` : '';
+    const activeCls = (sendable && t.userId === selectedCustomer) ? 'active' : '';
+    return `<div class="cust-item ${activeCls}" ${onclick}
+                 style="${sendable ? '' : 'cursor:default;opacity:.7'}">
+      <div class="id">${icon} ${idLine}</div>
+      <div class="row">
         <span class="badge ${envClass(cap(env))}">${esc(env)}</span>
-        ${head}
-        <span class="time">${when}</span>
+        <span class="pill">${isCancelled ? '🥀 cancelled' : '🎁 active'}</span>
+        <span style="margin-left:auto">${when}</span>
       </div>
-      <div class="grid">${fields}</div>
     </div>`;
   }).join('');
 }
@@ -459,6 +458,7 @@ function rerenderActiveList() {
   if (activeTab === 'customers') renderCustomers(lastCustomers);
   else if (activeTab === 'converted') renderConverted(lastConverted);
   else if (activeTab === 'reengage') renderReengage(lastReengage);
+  else if (activeTab === 'trials') renderTrials(lastTrials);
 }
 
 async function refreshTimeline(id) {
@@ -525,6 +525,7 @@ async function poll() {
     } else if (activeTab === 'trials') {
       const res = await fetch('/trials');
       renderTrials(await res.json());
+      if (selectedCustomer) refreshTimeline(selectedCustomer);
     } else {
       const res = await fetch('/customers');
       renderCustomers(await res.json());

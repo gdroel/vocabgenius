@@ -371,6 +371,16 @@ def _offer_from_label(label):
     return match.group(1) if match else ""
 
 
+def _epoch(iso):
+    """ISO-8601 string -> POSIX seconds, or None if unparseable."""
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 def converted_customers():
     """Customers who were sent an offer push and then completed the offer.
 
@@ -500,6 +510,39 @@ def trials_summary():
     result = list(trials.values())
     for t in result:
         t["status"] = "cancelled" if t["cancelledAt"] else "active"
+
+    # Apple's notifications don't carry the RevenueCat user id, but our client
+    # logs an annual_trial_started event (which does) within seconds of the
+    # trial starting. Match each trial to its closest such event by time so the
+    # row can reuse the customer send-push flow. Global nearest-first greedy
+    # assignment, capped at a generous window; unmatched trials get userId=None.
+    ats = db_exec(
+        "SELECT user_id, received_at FROM client_events "
+        "WHERE event='annual_trial_started' ORDER BY received_at ASC",
+        fetch="all",
+    ) or []
+    cand_epochs = [(_epoch(a["received_at"]), a["user_id"]) for a in ats]
+    cand_epochs = [c for c in cand_epochs if c[0] is not None]
+    WINDOW = 600  # seconds
+    pairs = []
+    for ti, t in enumerate(result):
+        t["userId"] = None
+        ep = _epoch(t["startedAt"])
+        if ep is None:
+            continue
+        for ci, (cep, _uid) in enumerate(cand_epochs):
+            delta = abs(cep - ep)
+            if delta <= WINDOW:
+                pairs.append((delta, ti, ci))
+    pairs.sort()
+    used_t, used_c = set(), set()
+    for _delta, ti, ci in pairs:
+        if ti in used_t or ci in used_c:
+            continue
+        result[ti]["userId"] = cand_epochs[ci][1]
+        used_t.add(ti)
+        used_c.add(ci)
+
     # Cancelled (rank 0) before active (rank 1); within each, oldest first by the
     # relevant timestamp (cancellation time for cancelled, start time for active).
     result.sort(key=lambda t: (
