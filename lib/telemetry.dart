@@ -67,9 +67,6 @@ class Telemetry {
   /// The user started the monthly plan (from the notification paywall).
   static void monthlyStarted() => _send('monthly_started');
 
-  /// The user bought the lifetime plan (from the lifetime paywall).
-  static void lifetimePurchased() => _send('lifetime_purchased');
-
   /// The user entered their name during onboarding; [name] is sent as the
   /// event value.
   static void nameEntered(String name) => _send('name_entered', value: name);

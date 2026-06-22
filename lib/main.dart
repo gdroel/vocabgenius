@@ -97,6 +97,10 @@ class _ProfessorPipAppState extends State<ProfessorPipApp>
     // `detached` (true termination) rarely leaves time for a network call.
     if (state == AppLifecycleState.paused) {
       Telemetry.appClosed();
+    } else if (state == AppLifecycleState.resumed) {
+      // Re-check entitlement on every foreground so a subscription that lapsed
+      // while the app was away flips isPro off and re-gates to the paywall.
+      widget.billing.refresh();
     }
   }
 

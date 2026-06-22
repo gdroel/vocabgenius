@@ -136,37 +136,6 @@ class NotificationsService {
     }
   }
 
-  // DEMO ONLY — fires five "word of the day" notifications a few seconds apart
-  // so the experience can be shown live. Equanimous is delivered last. Remove
-  // before shipping.
-  static const _demoWordOfDayBaseId = 3000;
-  static const List<List<String>> _demoWords = [
-    ['Ephemeral', '(adj) Lasting for a very short time (The morning mist was ephemeral.)'],
-    ['Sycophant', '(n) A person who flatters others to gain advantage (The king was surrounded by sycophants.)'],
-    ['Quixotic', '(adj) Exceedingly idealistic and impractical (He had a quixotic plan to end all traffic.)'],
-    ['Laconic', '(adj) Using very few words (Her laconic reply ended the conversation.)'],
-    ['Equanimous', '(adj) Calm and in control of emotions (She remained equanimous during the crisis.)'],
-  ];
-  Future<void> scheduleDemoWordOfDay() async {
-    await init();
-    for (var i = 0; i < _demoWords.length; i++) {
-      final fireAt =
-          tz.TZDateTime.now(tz.local).add(Duration(seconds: 15 + i * 3));
-      await _plugin.zonedSchedule(
-        _demoWordOfDayBaseId + i,
-        _demoWords[i][0],
-        _demoWords[i][1],
-        fireAt,
-        const NotificationDetails(
-          iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
-        ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-      );
-    }
-  }
-
   Future<void> cancelWordOfDay() async {
     await init();
     for (var i = 0; i < _wordOfDayDays; i++) {

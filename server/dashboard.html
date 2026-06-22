@@ -343,7 +343,7 @@ function renderConverted(list) {
   if (!shown.length) { el.innerHTML = '<div class="empty">No conversions yet…</div>'; return; }
   el.innerHTML = shown.map(c => {
     const env = c.environment || 'unknown';
-    const what = c.convertedEvent === 'lifetime_purchased' ? '⭐ lifetime' : '⭐ monthly';
+    const what = '⭐ monthly';
     return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
                  onclick="selectCustomer('${esc(c.userId)}','convDetail')">
       <div class="id">${esc(c.userId)}</div>
@@ -444,8 +444,7 @@ function selectCustomer(id, detailId = 'custDetail') {
                border:1px solid var(--border);background:#0d1117;color:var(--text);font:inherit">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="primary" onclick="sendPush('${esc(id)}','monthly')">Send $2/mo offer</button>
-        <button class="primary" onclick="sendPush('${esc(id)}','lifetime')">Send $10 lifetime offer</button>
-        <span class="meta">opens the matching offer screen on tap</span>
+        <span class="meta">opens the offer screen on tap</span>
       </div>
       <div id="pushResult" class="meta" style="margin-top:8px;white-space:pre-wrap"></div>
     </div>
@@ -486,8 +485,7 @@ async function sendPush(id, route) {
   const title = titleEl.value.trim();
   const body = msg.value.trim();
   if (!title && !body) { out.textContent = 'Enter a title or message first.'; return; }
-  const offer = route === 'lifetime' ? '$10 lifetime' : '$2/mo';
-  out.textContent = `Sending ${offer} offer…`;
+  out.textContent = 'Sending $2/mo offer…';
   try {
     const res = await fetch('/send-push', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

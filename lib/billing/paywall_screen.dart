@@ -267,17 +267,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
 /// Which one-time offer a push opens the user to. The two differ only in copy,
 /// the discount badge, and which product they buy — everything else (layout,
 /// navigation, entitlement) is shared.
-enum PaywallOffer { monthly, lifetime }
-
-/// No-free-trial paywall opened from a push notification, in two variants:
-///   - [PaywallOffer.monthly]:  the $1.99/mo "60% off" professorpipmonthlytwo
-///   - [PaywallOffer.lifetime]: the one-time professorpiplifetime purchase
-/// Mirrors [PaywallScreen] but swaps the trial timeline for the onboarding
-/// lockscreen image. Buying either grants the same Pro entitlement as the
-/// annual plan.
+/// No-free-trial paywall opened from a push notification: the $1.99/mo "60% off"
+/// professorpipmonthlytwo offer. Mirrors [PaywallScreen] but swaps the trial
+/// timeline for the onboarding lockscreen image. Buying it grants the same Pro
+/// entitlement as the annual plan.
 class OfferPaywallScreen extends StatefulWidget {
-  final PaywallOffer offer;
-  const OfferPaywallScreen({super.key, required this.offer});
+  const OfferPaywallScreen({super.key});
 
   @override
   State<OfferPaywallScreen> createState() => _OfferPaywallScreenState();
@@ -287,8 +282,6 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
   bool _busy = false;
   bool _wasPro = false;
   BillingService? _billing;
-
-  bool get _isLifetime => widget.offer == PaywallOffer.lifetime;
 
   @override
   void initState() {
@@ -305,13 +298,9 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
       _billing = billing;
       _wasPro = billing.isPro;
       billing.addListener(_onBillingChange);
-      // Fetch this offer's product so the bubble and button show its real store
+      // Fetch the offer's product so the bubble and button show its real store
       // price; rebuilds via _onBillingChange once it resolves.
-      if (_isLifetime) {
-        billing.loadLifetime();
-      } else {
-        billing.loadPipMonthlyTwo();
-      }
+      billing.loadPipMonthlyTwo();
     }
   }
 
@@ -323,9 +312,8 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
 
   /// Live store price for this offer, falling back to its list price until the
   /// product load resolves.
-  String _priceLabel(BillingService? billing) => _isLifetime
-      ? (billing?.lifetimePriceLabel ?? '\$9.99')
-      : (billing?.pipMonthlyTwoPriceLabel ?? '\$1.99');
+  String _priceLabel(BillingService? billing) =>
+      billing?.pipMonthlyTwoPriceLabel ?? '\$1.99';
 
   void _onBillingChange() {
     final billing = _billing;
@@ -360,13 +348,8 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      if (_isLifetime) {
-        final ok = await billing.buyLifetime();
-        if (ok) Telemetry.lifetimePurchased();
-      } else {
-        final ok = await billing.buyPipMonthlyTwo();
-        if (ok) Telemetry.monthlyStarted();
-      }
+      final ok = await billing.buyPipMonthlyTwo();
+      if (ok) Telemetry.monthlyStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -387,15 +370,10 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
   Widget build(BuildContext context) {
     final billing = _billing;
     final priceLabel = _priceLabel(billing);
-    final bubbleText = _isLifetime
-        ? 'Special offer just for you, unlock Professor Pip forever!'
-        : 'Special offer just for you, daily vocab for just $priceLabel a month!';
-    final buttonLabel = _isLifetime
-        ? 'Unlock for $priceLabel'
-        : 'Unlock for $priceLabel a month';
-    final subtext = _isLifetime
-        ? 'Pay once, enjoy daily vocab forever'
-        : '30-day money-back guarantee, cancel anytime';
+    final bubbleText =
+        'Special offer just for you, daily vocab for just $priceLabel a month!';
+    final buttonLabel = 'Unlock for $priceLabel a month';
+    const subtext = '30-day money-back guarantee, cancel anytime';
     return Scaffold(
       backgroundColor: AppColors.cream,
       body: SafeArea(
@@ -447,13 +425,11 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
                             fit: BoxFit.contain,
                           ),
                         ),
-                        // The 60%-off badge only applies to the monthly offer.
-                        if (!_isLifetime)
-                          const Positioned(
-                            top: -6,
-                            right: -6,
-                            child: _DiscountBadge(percent: 60),
-                          ),
+                        const Positioned(
+                          top: -6,
+                          right: -6,
+                          child: _DiscountBadge(percent: 60),
+                        ),
                       ],
                     ),
                   ),

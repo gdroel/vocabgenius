@@ -24,13 +24,6 @@ const proEntitlementId = 'Professor Pip Pro';
 // the same [proEntitlementId].
 const pipMonthlyTwoProductId = 'professorpipmonthlytwo';
 
-// The lifetime, non-consumable IAP (one-time $9.99 purchase). Like every other
-// plan it's attached to [proEntitlementId] in RevenueCat, so buying it unlocks
-// all Professor Pip features — permanently, since a non-subscription entitlement
-// never expires. Fetched as ProductCategory.nonSubscription (subscription is the
-// SDK default and would not find a one-time product).
-const lifetimeProductId = 'professorpiplifetime';
-
 // The bumped-price annual plan ($83.99/yr). Targeted by product id rather than
 // the offering's $rc_annual package so the paywall always charges this exact
 // SKU; the original annual plan still exists for current subscribers. Buying it
@@ -46,7 +39,6 @@ class BillingService extends ChangeNotifier {
   bool _configured = false;
   Offering? _currentOffering;
   StoreProduct? _pipMonthlyTwoProduct;
-  StoreProduct? _lifetimeProduct;
   StoreProduct? _annualPlan84Product;
   String? _lastError;
 
@@ -107,24 +99,63 @@ class BillingService extends ChangeNotifier {
 
     Purchases.addCustomerInfoUpdateListener(_onCustomerInfo);
 
-    // Hydrate entitlement + offerings concurrently. CustomerInfo returns the
-    // cached state immediately and refreshes from the server in the background;
-    // the listener catches any drift.
+    // Derive Pro from live StoreKit (the same source the widget trusts) and
+    // load offerings for prices, concurrently.
     await Future.wait<void>([
-      _refreshCustomerInfo(),
+      _refreshProFromStoreKit(),
       _refreshOfferings(),
     ]);
 
     notifyListeners();
   }
 
-  Future<void> _refreshCustomerInfo() async {
+  /// The app's Pro gate. Asks the native side for the live StoreKit entitlement
+  /// (active auto-renewable subscription) — the exact check the lock-screen
+  /// widget uses — so the app can never disagree with the widget or get stuck on
+  /// RevenueCat's stale cache. Falls back to RevenueCat only where StoreKit
+  /// isn't available (e.g. non-iOS), so Android still works.
+  Future<void> _refreshProFromStoreKit() async {
+    bool? active;
+    try {
+      active = await _widgetChannel.invokeMethod<bool>('hasActiveSubscription');
+    } catch (_) {
+      active = null; // channel/StoreKit unavailable
+    }
+    if (active == null) {
+      await _refreshFromRevenueCat();
+      return;
+    }
+    await _applyProStatus(active);
+  }
+
+  /// Fallback entitlement read via RevenueCat (used off-iOS / pre-StoreKit 2).
+  Future<void> _refreshFromRevenueCat() async {
     try {
       final info = await Purchases.getCustomerInfo();
-      await _applyCustomerInfo(info);
+      final active =
+          info.entitlements.all[proEntitlementId]?.isActive ?? false;
+      await _applyProStatus(active);
     } on PlatformException catch (e) {
       _lastError = e.message ?? 'Failed to load customer info';
     }
+  }
+
+  Future<void> _applyProStatus(bool active) async {
+    if (active == _isPro) return;
+    _isPro = active;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_entitlementCacheKey, active);
+    _pushProStatusToWidget(active);
+    notifyListeners();
+  }
+
+  /// Re-checks entitlement from live StoreKit. Call when the app returns to the
+  /// foreground so a subscription that lapsed while the app was away flips
+  /// [isPro] off and re-gates the UI to the paywall — instead of stranding the
+  /// user in the app (with a correctly-locked widget) until a cold start.
+  Future<void> refresh() async {
+    if (!_configured) return;
+    await _refreshProFromStoreKit();
   }
 
   Future<void> _refreshOfferings() async {
@@ -139,19 +170,10 @@ class BillingService extends ChangeNotifier {
     }
   }
 
+  // RevenueCat tells us a purchase/renewal/expiry changed; re-derive the gate
+  // from live StoreKit rather than trusting RevenueCat's (sometimes stale) view.
   void _onCustomerInfo(CustomerInfo info) {
-    _applyCustomerInfo(info);
-  }
-
-  Future<void> _applyCustomerInfo(CustomerInfo info) async {
-    final active =
-        info.entitlements.all[proEntitlementId]?.isActive ?? false;
-    if (active == _isPro) return;
-    _isPro = active;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_entitlementCacheKey, active);
-    _pushProStatusToWidget(active);
-    notifyListeners();
+    _refreshProFromStoreKit();
   }
 
   @override
@@ -259,51 +281,6 @@ class BillingService extends ChangeNotifier {
     return _runPurchase(PurchaseParams.storeProduct(product), product);
   }
 
-  /// The lifetime product (professorpiplifetime), once loaded via
-  /// [loadLifetime].
-  StoreProduct? get lifetimeProduct => _lifetimeProduct;
-
-  /// Localized, store-formatted price for the lifetime product (e.g. "$9.99"),
-  /// or null until [loadLifetime] has resolved it.
-  String? get lifetimePriceLabel => _lifetimeProduct?.priceString;
-
-  /// Fetches [lifetimeProductId] (a non-consumable) so its localized price is
-  /// available for the lifetime paywall. Best-effort and idempotent.
-  Future<void> loadLifetime() async {
-    if (_lifetimeProduct != null) return;
-    try {
-      final products = await Purchases.getProducts(
-        [lifetimeProductId],
-        productCategory: ProductCategory.nonSubscription,
-      );
-      if (products.isNotEmpty) {
-        _lifetimeProduct = products.first;
-        notifyListeners();
-      }
-    } on PlatformException {
-      // Best-effort: leave the fallback price in place.
-    }
-  }
-
-  /// Buys the lifetime plan promoted via push. Targets the product directly and
-  /// grants the same Pro entitlement as every other plan — permanently. Logs a
-  /// one-time purchase (not a trial start). Surfaces an error rather than
-  /// charging anything else if the product can't be loaded.
-  Future<bool> buyLifetime() async {
-    await loadLifetime();
-    final product = _lifetimeProduct;
-    if (product == null) {
-      _lastError = 'This offer is unavailable right now. Please try again.';
-      notifyListeners();
-      return false;
-    }
-    return _runPurchase(
-      PurchaseParams.storeProduct(product),
-      product,
-      oneTime: true,
-    );
-  }
-
   Future<bool> _purchase(Package? package) {
     if (package == null) {
       _lastError = 'Package unavailable — check the RevenueCat offering';
@@ -317,29 +294,22 @@ class BillingService extends ChangeNotifier {
   }
 
   /// Core purchase flow shared by package- and product-based purchases.
-  /// [product] is used only for analytics. [oneTime] logs a completed purchase
-  /// instead of a trial start — correct for the lifetime IAP, which has no
-  /// trial.
+  /// [product] is used only for analytics.
   Future<bool> _runPurchase(
     PurchaseParams params,
-    StoreProduct product, {
-    bool oneTime = false,
-  }) async {
+    StoreProduct product,
+  ) async {
     _lastError = null;
 
     try {
       final wasPro = _isPro;
-      final result = await Purchases.purchase(params);
-      await _applyCustomerInfo(result.customerInfo);
-      final nowPro =
-          result.customerInfo.entitlements.all[proEntitlementId]?.isActive ??
-              false;
+      await Purchases.purchase(params);
+      // Derive the result from live StoreKit (same gate as everywhere else)
+      // rather than RevenueCat's returned CustomerInfo, so it can't disagree.
+      await _refreshProFromStoreKit();
+      final nowPro = _isPro;
       if (nowPro && !wasPro) {
-        if (oneTime) {
-          await _logPurchase(product);
-        } else {
-          await _logStartTrial(product);
-        }
+        await _logStartTrial(product);
       }
       return nowPro;
     } on PlatformException catch (e) {
@@ -357,8 +327,8 @@ class BillingService extends ChangeNotifier {
   Future<bool> restore() async {
     _lastError = null;
     try {
-      final info = await Purchases.restorePurchases();
-      await _applyCustomerInfo(info);
+      await Purchases.restorePurchases();
+      await _refreshProFromStoreKit();
       return _isPro;
     } on PlatformException catch (e) {
       _lastError = e.message ?? 'Restore failed';
@@ -391,17 +361,6 @@ class BillingService extends ChangeNotifier {
         orderId: product.identifier,
         currency: product.currencyCode,
         price: product.price,
-      );
-    } catch (_) {
-      // Non-fatal: analytics failure must not block the purchase flow.
-    }
-  }
-
-  Future<void> _logPurchase(StoreProduct product) async {
-    try {
-      await _fb.logPurchase(
-        amount: product.price,
-        currency: product.currencyCode,
       );
     } catch (_) {
       // Non-fatal: analytics failure must not block the purchase flow.

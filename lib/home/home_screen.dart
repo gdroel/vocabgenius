@@ -554,7 +554,7 @@ class _PipSpeechBubbleState extends State<_PipSpeechBubble>
                         text: TextSpan(
                           style: const TextStyle(
                             color: AppColors.ink,
-                            fontSize: 14,
+                            fontSize: 17,
                             fontWeight: FontWeight.w500,
                             fontStyle: FontStyle.italic,
                             height: 1.35,

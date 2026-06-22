@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import StoreKit
 
 private let appGroupId = "group.com.gaberoeloffs.professorpip"
 private let followedTopicsKey = "followedTopics"
@@ -12,6 +13,31 @@ private let maxWordsPerDay = 48
 private func isProUser() -> Bool {
     let defaults = UserDefaults(suiteName: appGroupId)
     return defaults?.bool(forKey: proStatusKey) ?? false
+}
+
+/// Live entitlement check straight from StoreKit, so the widget reflects the
+/// real subscription state even when the app hasn't run in a while — people buy
+/// this for the widget and may rarely open the app, so we can't trust the
+/// app-pushed `proStatus` flag to be fresh. Pro is sold only as an
+/// auto-renewable subscription, so we count ONLY active subscriptions — never a
+/// non-consumable. (This deliberately ignores any leftover one-time purchase.)
+/// Falls back to the cached flag on iOS < 15 (no StoreKit 2), and writes the
+/// result back to the flag so the synchronous render-time gate stays consistent.
+private func isProEntitled() async -> Bool {
+    if #available(iOS 15.0, *) {
+        var entitled = false
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let txn) = result,
+               txn.revocationDate == nil,
+               txn.productType == .autoRenewable {
+                entitled = true
+                break
+            }
+        }
+        UserDefaults(suiteName: appGroupId)?.set(entitled, forKey: proStatusKey)
+        return entitled
+    }
+    return isProUser()
 }
 
 private func wordsPerDay() -> Int {
@@ -28,7 +54,7 @@ private let upgradeEntry = VocabEntry(
     date: .now,
     word: "Upgrade",
     partOfSpeech: "",
-    definition: "Upgrade plan to see new words."
+    definition: "Tap here to unlock all 10,000+ words across 15 topics"
 )
 
 private let pausedEntry = VocabEntry(
@@ -64,9 +90,9 @@ struct VocabEntry: TimelineEntry {
 
 private let emptyStateEntry = VocabEntry(
     date: .now,
-    word: "Welcome",
+    word: "Upgrade",
     partOfSpeech: "",
-    definition: "Open the app to select topics."
+    definition: "Tap here to unlock all 10,000+ words across 15 topics"
 )
 
 private func followedTopicIds() -> Set<String> {
@@ -115,79 +141,88 @@ struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> VocabEntry { emptyStateEntry }
 
     func getSnapshot(in context: Context, completion: @escaping (VocabEntry) -> Void) {
-        if !isProUser() {
-            completion(upgradeEntry)
-            return
+        Task {
+            if !(await isProEntitled()) {
+                completion(upgradeEntry)
+                return
+            }
+            if let last = lastWordFromApp() {
+                completion(VocabEntry(
+                    date: Date(),
+                    word: last.word,
+                    partOfSpeech: last.pos,
+                    definition: last.definition
+                ))
+                return
+            }
+            let pool = wordPool()
+            completion(makeVocabEntry(for: Date(), pool: pool))
         }
-        if let last = lastWordFromApp() {
-            completion(VocabEntry(
-                date: Date(),
-                word: last.word,
-                partOfSpeech: last.pos,
-                definition: last.definition
-            ))
-            return
-        }
-        let pool = wordPool()
-        completion(makeVocabEntry(for: Date(), pool: pool))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<VocabEntry>) -> Void) {
-        let cal = Calendar(identifier: .gregorian)
-        let now = Date()
-        let startOfDay = cal.date(
-            from: cal.dateComponents([.year, .month, .day], from: now)
-        ) ?? now
+        Task {
+            let isPro = await isProEntitled()
+            let cal = Calendar(identifier: .gregorian)
+            let now = Date()
+            let startOfDay = cal.date(
+                from: cal.dateComponents([.year, .month, .day], from: now)
+            ) ?? now
 
-        if !isProUser() {
-            // No active subscription — show a static upgrade prompt and
-            // re-check in a few hours in case the user upgrades.
-            let refresh = cal.date(byAdding: .hour, value: 4, to: now) ?? now
-            completion(Timeline(entries: [upgradeEntry], policy: .after(refresh)))
-            return
+            if !isPro {
+                // No active subscription — show a static upgrade prompt and
+                // re-check in a few hours in case the user upgrades.
+                let refresh = cal.date(byAdding: .hour, value: 4, to: now) ?? now
+                completion(Timeline(entries: [upgradeEntry], policy: .after(refresh)))
+                return
+            }
+
+            let wpd = wordsPerDay()
+            if wpd <= 0 {
+                // User dialed cadence down to 0 — pin a "paused" entry and
+                // re-check once a day so the widget picks up changes.
+                let refresh = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? now
+                completion(Timeline(entries: [pausedEntry], policy: .after(refresh)))
+                return
+            }
+
+            let pool = wordPool()
+            let secondsPerSlot = 86_400.0 / Double(wpd)
+            let secondsIntoDay = now.timeIntervalSince(startOfDay)
+            let currentSlotIndex = Int(secondsIntoDay / secondsPerSlot)
+            let currentSlotStart = startOfDay
+                .addingTimeInterval(Double(currentSlotIndex) * secondsPerSlot)
+
+            // Always generate one full day's worth of slots so the timeline keeps
+            // rotating even if WidgetCenter doesn't reload us promptly.
+            let slotsToGenerate = wpd
+            var entries: [VocabEntry] = []
+
+            // The current slot's entry mirrors whatever word the app last
+            // showed (if any) so the widget stays in sync with the in-app view.
+            if let last = lastWordFromApp() {
+                entries.append(VocabEntry(
+                    date: currentSlotStart,
+                    word: last.word,
+                    partOfSpeech: last.pos,
+                    definition: last.definition
+                ))
+            } else {
+                entries.append(makeVocabEntry(for: currentSlotStart, pool: pool))
+            }
+            for offset in 1..<slotsToGenerate {
+                let d = currentSlotStart
+                    .addingTimeInterval(Double(offset) * secondsPerSlot)
+                entries.append(makeVocabEntry(for: d, pool: pool))
+            }
+            // Refresh at the next slot boundary, but at least every few hours so
+            // a lapsed subscription is caught promptly even if the app never runs.
+            let slotsRefresh = currentSlotStart
+                .addingTimeInterval(Double(slotsToGenerate) * secondsPerSlot)
+            let entitlementRefresh = cal.date(byAdding: .hour, value: 4, to: now) ?? slotsRefresh
+            let refresh = min(slotsRefresh, entitlementRefresh)
+            completion(Timeline(entries: entries, policy: .after(refresh)))
         }
-
-        let wpd = wordsPerDay()
-        if wpd <= 0 {
-            // User dialed cadence down to 0 — pin a "paused" entry and
-            // re-check once a day so the widget picks up changes.
-            let refresh = cal.date(byAdding: .day, value: 1, to: startOfDay) ?? now
-            completion(Timeline(entries: [pausedEntry], policy: .after(refresh)))
-            return
-        }
-
-        let pool = wordPool()
-        let secondsPerSlot = 86_400.0 / Double(wpd)
-        let secondsIntoDay = now.timeIntervalSince(startOfDay)
-        let currentSlotIndex = Int(secondsIntoDay / secondsPerSlot)
-        let currentSlotStart = startOfDay
-            .addingTimeInterval(Double(currentSlotIndex) * secondsPerSlot)
-
-        // Always generate one full day's worth of slots so the timeline keeps
-        // rotating even if WidgetCenter doesn't reload us promptly.
-        let slotsToGenerate = wpd
-        var entries: [VocabEntry] = []
-
-        // The current slot's entry mirrors whatever word the app last
-        // showed (if any) so the widget stays in sync with the in-app view.
-        if let last = lastWordFromApp() {
-            entries.append(VocabEntry(
-                date: currentSlotStart,
-                word: last.word,
-                partOfSpeech: last.pos,
-                definition: last.definition
-            ))
-        } else {
-            entries.append(makeVocabEntry(for: currentSlotStart, pool: pool))
-        }
-        for offset in 1..<slotsToGenerate {
-            let d = currentSlotStart
-                .addingTimeInterval(Double(offset) * secondsPerSlot)
-            entries.append(makeVocabEntry(for: d, pool: pool))
-        }
-        let refresh = currentSlotStart
-            .addingTimeInterval(Double(slotsToGenerate) * secondsPerSlot)
-        completion(Timeline(entries: entries, policy: .after(refresh)))
     }
 }
 
@@ -246,11 +281,15 @@ struct ProfessorPipWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
+            // Re-check Pro live at render time so a non-subscriber never sees a
+            // real word, even if a timeline generated while subscribed is still
+            // cached. One gate here covers every widget family.
+            let gated = isProUser() ? entry : upgradeEntry
             if #available(iOS 17.0, *) {
-                ProfessorPipWidgetEntryView(entry: entry)
+                ProfessorPipWidgetEntryView(entry: gated)
                     .containerBackground(.fill.tertiary, for: .widget)
             } else {
-                ProfessorPipWidgetEntryView(entry: entry)
+                ProfessorPipWidgetEntryView(entry: gated)
                     .padding()
                     .background()
             }

@@ -14,12 +14,13 @@ class Topic {
 }
 
 class TopicsCatalog {
+  // Ordered most-popular to least (curse words removed).
   static const all = <Topic>[
     Topic(
-      id: 'soccer',
-      title: 'Soccer',
-      blurb: 'The language of the beautiful game',
-      icon: Icons.sports_soccer_rounded,
+      id: 'slang',
+      title: 'Slang',
+      blurb: 'How people actually talk right now',
+      icon: Icons.chat_bubble_outline_rounded,
     ),
     Topic(
       id: 'beautiful',
@@ -28,22 +29,10 @@ class TopicsCatalog {
       icon: Icons.local_florist_rounded,
     ),
     Topic(
-      id: 'untranslatable',
-      title: 'Untranslatable',
-      blurb: 'Foreign words English borrowed for a feeling',
-      icon: Icons.translate_rounded,
-    ),
-    Topic(
-      id: 'slang',
-      title: 'Slang',
-      blurb: 'How people actually talk right now',
-      icon: Icons.chat_bubble_outline_rounded,
-    ),
-    Topic(
-      id: 'curse',
-      title: 'Curse words',
-      blurb: 'The colorful side of language',
-      icon: Icons.tag_rounded,
+      id: 'love',
+      title: 'Love & dating',
+      blurb: 'The vocabulary of romance',
+      icon: Icons.favorite_rounded,
     ),
     Topic(
       id: 'funny',
@@ -52,16 +41,10 @@ class TopicsCatalog {
       icon: Icons.sentiment_very_satisfied_rounded,
     ),
     Topic(
-      id: 'fancy',
-      title: 'Too fancy',
-      blurb: 'Show-off words for when plain ones won\'t do',
-      icon: Icons.auto_awesome_rounded,
-    ),
-    Topic(
-      id: 'oldmoney',
-      title: 'Old Money',
-      blurb: 'Talk like you summer somewhere',
-      icon: Icons.sailing_rounded,
+      id: 'sexology',
+      title: 'Sexology',
+      blurb: 'The science of desire and intimacy',
+      icon: Icons.local_fire_department_rounded,
     ),
     Topic(
       id: 'emotions',
@@ -70,10 +53,22 @@ class TopicsCatalog {
       icon: Icons.favorite_outline_rounded,
     ),
     Topic(
-      id: 'love',
-      title: 'Love & dating',
-      blurb: 'The vocabulary of romance',
-      icon: Icons.favorite_rounded,
+      id: 'everyday',
+      title: 'Useful in everyday life',
+      blurb: 'Sharp words you can actually use daily',
+      icon: Icons.lightbulb_outline_rounded,
+    ),
+    Topic(
+      id: 'untranslatable',
+      title: 'Untranslatable',
+      blurb: 'Foreign words English borrowed for a feeling',
+      icon: Icons.translate_rounded,
+    ),
+    Topic(
+      id: 'fancy',
+      title: 'Too fancy',
+      blurb: 'Show-off words for when plain ones won\'t do',
+      icon: Icons.auto_awesome_rounded,
     ),
     Topic(
       id: 'business',
@@ -82,16 +77,10 @@ class TopicsCatalog {
       icon: Icons.business_center_outlined,
     ),
     Topic(
-      id: 'science',
-      title: 'Science',
-      blurb: 'Words to talk about how the world works',
-      icon: Icons.science_outlined,
-    ),
-    Topic(
-      id: 'philosophy',
-      title: 'Philosophy',
-      blurb: 'Big ideas in precise language',
-      icon: Icons.psychology_outlined,
+      id: 'oldmoney',
+      title: 'Old Money',
+      blurb: 'Talk like you summer somewhere',
+      icon: Icons.sailing_rounded,
     ),
     Topic(
       id: 'psychology',
@@ -100,34 +89,16 @@ class TopicsCatalog {
       icon: Icons.spa_rounded,
     ),
     Topic(
-      id: 'socialscience',
-      title: 'Social science',
-      blurb: 'How societies, economies and people behave',
-      icon: Icons.groups_rounded,
+      id: 'philosophy',
+      title: 'Philosophy',
+      blurb: 'Big ideas in precise language',
+      icon: Icons.psychology_outlined,
     ),
     Topic(
-      id: 'biology',
-      title: 'Biology',
-      blurb: 'The vocabulary of living things',
-      icon: Icons.biotech_rounded,
-    ),
-    Topic(
-      id: 'sexology',
-      title: 'Sexology',
-      blurb: 'The science of desire and intimacy',
-      icon: Icons.local_fire_department_rounded,
-    ),
-    Topic(
-      id: 'everyday',
-      title: 'Useful in everyday life',
-      blurb: 'Sharp words you can actually use daily',
-      icon: Icons.lightbulb_outline_rounded,
-    ),
-    Topic(
-      id: 'latin',
-      title: 'Latin phrases',
-      blurb: 'Carpe diem and 199 other classics',
-      icon: Icons.menu_book_rounded,
+      id: 'science',
+      title: 'Science',
+      blurb: 'Words to talk about how the world works',
+      icon: Icons.science_outlined,
     ),
     Topic(
       id: 'literature',
@@ -152,6 +123,30 @@ class TopicsCatalog {
       title: 'Music',
       blurb: 'The language of sound',
       icon: Icons.music_note_rounded,
+    ),
+    Topic(
+      id: 'socialscience',
+      title: 'Social science',
+      blurb: 'How societies, economies and people behave',
+      icon: Icons.groups_rounded,
+    ),
+    Topic(
+      id: 'biology',
+      title: 'Biology',
+      blurb: 'The vocabulary of living things',
+      icon: Icons.biotech_rounded,
+    ),
+    Topic(
+      id: 'latin',
+      title: 'Latin phrases',
+      blurb: 'Carpe diem and 199 other classics',
+      icon: Icons.menu_book_rounded,
+    ),
+    Topic(
+      id: 'soccer',
+      title: 'Soccer',
+      blurb: 'The language of the beautiful game',
+      icon: Icons.sports_soccer_rounded,
     ),
   ];
 

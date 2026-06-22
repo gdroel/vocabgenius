@@ -194,6 +194,42 @@ import FBSDKCoreKit
         let isSandbox = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
         result(isSandbox ? "sandbox" : "production")
         #endif
+      case "hasActiveSubscription":
+        // The app's Pro gate, matching the widget exactly: true only when
+        // StoreKit reports an active, non-revoked auto-renewable subscription.
+        // This is the live on-device truth, independent of RevenueCat's cache.
+        if #available(iOS 15.0, *) {
+          Task {
+            var active = false
+            for await entitlement in Transaction.currentEntitlements {
+              if case .verified(let txn) = entitlement,
+                 txn.revocationDate == nil,
+                 txn.productType == .autoRenewable {
+                active = true
+                break
+              }
+            }
+            result(active)
+          }
+        } else {
+          result(nil)
+        }
+      case "storeKitEntitlements":
+        // DEBUG aid: returns the product ids StoreKit currently entitles this
+        // Apple ID to. Empty == no active subscription/purchase on the device.
+        if #available(iOS 15.0, *) {
+          Task {
+            var ids: [String] = []
+            for await entitlement in Transaction.currentEntitlements {
+              if case .verified(let txn) = entitlement, txn.revocationDate == nil {
+                ids.append(txn.productID)
+              }
+            }
+            result(ids)
+          }
+        } else {
+          result([String]())
+        }
       case "requestAppReview":
         // System decides whether to actually surface the prompt (rate-limited
         // by Apple to a few times a year); calling it is always safe.

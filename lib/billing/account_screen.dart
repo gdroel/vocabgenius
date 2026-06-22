@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import 'billing_service.dart';
 import 'legal_screen.dart';
@@ -72,26 +71,37 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  // DEMO ONLY — fires a sample word-of-the-day notification 15s from now and
-  // sets the lock-screen widget word to "spurious". Remove before shipping.
   static const _widgetChannel = MethodChannel('professor_pip/widget');
-  Future<void> _sendDemoWordOfDay() async {
-    // Change the lock-screen widget word immediately on tap.
+
+  // DEBUG: surface what the device actually thinks the user owns, so we can tell
+  // whether a "words showing without a plan" report is a real bug or a leftover
+  // sandbox entitlement. Remove before shipping.
+  Future<void> _checkEntitlement() async {
+    List<dynamic> ids = const [];
     try {
-      await _widgetChannel.invokeMethod('setLastWord', {
-        'topicId': 'demo',
-        'word': 'spurious',
-        'pos': 'adj',
-        'definition': 'false but designed to seem plausible',
-      });
-    } catch (_) {
-      // Channel only exists on iOS; ignore elsewhere.
-    }
-    await NotificationsService.instance.requestIosPermission();
-    await NotificationsService.instance.scheduleDemoWordOfDay();
+      ids = await _widgetChannel.invokeMethod('storeKitEntitlements') ?? const [];
+    } catch (_) {}
+    final isPro = _billing?.isPro ?? false;
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Word of the day arriving in 15s…')),
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Entitlement debug'),
+        content: Text(
+          'RevenueCat isPro: $isPro\n'
+          'StoreKit entitlements: ${ids.isEmpty ? 'NONE' : ids.join(', ')}\n\n'
+          'If StoreKit shows any product, this Apple ID has an active '
+          '(likely sandbox) subscription — that is why the widget shows words. '
+          'Clear it in Settings → App Store → Sandbox Account, or use a fresh '
+          'sandbox tester.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -145,12 +155,12 @@ class _AccountScreenState extends State<AccountScreen> {
                       onTap: _openCustomerCenter,
                     ),
                     const SizedBox(height: 24),
-                    // DEMO ONLY — remove before shipping.
-                    const _SectionLabel(text: 'Demo'),
+                    // DEBUG ONLY — remove before shipping.
+                    const _SectionLabel(text: 'Debug'),
                     _AccountRow(
-                      icon: Icons.notifications_active_rounded,
-                      label: 'Send word of the day (15s)',
-                      onTap: _sendDemoWordOfDay,
+                      icon: Icons.bug_report_rounded,
+                      label: 'Check entitlement (debug)',
+                      onTap: _checkEntitlement,
                     ),
                     const SizedBox(height: 24),
                     const _SectionLabel(text: 'Legal'),

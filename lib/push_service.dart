@@ -77,13 +77,10 @@ class PushService {
   }
 
   void _navigate(String route) {
-    // The push payload's route selects which offer paywall to open. Anything
-    // other than the explicit "lifetime" route (including the legacy "hello"
-    // value) opens the monthly offer, preserving older notifications.
-    final offer =
-        route == 'lifetime' ? PaywallOffer.lifetime : PaywallOffer.monthly;
+    // Any push tap opens the monthly offer paywall, regardless of the payload's
+    // route value (kept for backward compatibility with older notifications).
     void push() => navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (_) => OfferPaywallScreen(offer: offer)),
+          MaterialPageRoute(builder: (_) => const OfferPaywallScreen()),
         );
     // On a cold-start tap the navigator may not be mounted yet when the buffered
     // route arrives; defer to after the first frame so the push isn't dropped.

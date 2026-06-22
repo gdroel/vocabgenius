@@ -80,7 +80,6 @@ CLIENT_EVENT_TYPES = {
     "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
     "annual_trial_started": {"label": "Started annual trial", "icon": "🎁"},
     "monthly_started": {"label": "Started monthly plan", "icon": "⭐"},
-    "lifetime_purchased": {"label": "Bought lifetime", "icon": "💎"},
     # A completed onboarding step. Carries `step` (the screen name) and an
     # optional `value` (what the user picked); both are stored on the event.
     "onboarding_step": {"label": "Onboarding step", "icon": "📝"},
@@ -360,15 +359,15 @@ def customer_timeline(user_id):
 
 
 # Events that mean the user paid (so they should NOT be re-targeted). The
-# monthly/lifetime offers are what the push drives; an annual trial counts as
-# "already a customer" too.
-PURCHASE_EVENTS = ("monthly_started", "lifetime_purchased", "annual_trial_started")
-# The two events the offer push can produce.
-OFFER_PURCHASE_EVENTS = ("monthly_started", "lifetime_purchased")
+# monthly offer is what the push drives; an annual trial counts as "already a
+# customer" too.
+PURCHASE_EVENTS = ("monthly_started", "annual_trial_started")
+# The event the offer push can produce.
+OFFER_PURCHASE_EVENTS = ("monthly_started",)
 
 
 def _offer_from_label(label):
-    """Pull the '(monthly)'/'(lifetime)' suffix send_push() stamps on the label."""
+    """Pull the '(monthly)' suffix send_push() stamps on the label."""
     match = re.search(r"\(([^)]*)\)\s*$", label or "")
     return match.group(1) if match else ""
 
@@ -386,13 +385,13 @@ def _epoch(iso):
 def converted_customers():
     """Customers who were sent an offer push and then completed the offer.
 
-    A conversion counts only when a monthly/lifetime purchase event lands at or
-    after one of that customer's notification_sent events — i.e. the push could
-    plausibly have driven it. Returns one row per converting customer.
+    A conversion counts only when a monthly purchase event lands at or after one
+    of that customer's notification_sent events — i.e. the push could plausibly
+    have driven it. Returns one row per converting customer.
     """
     rows = db_exec(
         "SELECT user_id, event, received_at, data FROM client_events "
-        "WHERE event IN ('notification_sent', 'monthly_started', 'lifetime_purchased') "
+        "WHERE event IN ('notification_sent', 'monthly_started') "
         "ORDER BY user_id, received_at ASC",
         fetch="all",
     )
@@ -438,7 +437,7 @@ def reengage_customers():
     """
     rows = db_exec(
         "SELECT user_id, event, received_at, data FROM client_events "
-        "WHERE event IN ('paywall_reached', 'monthly_started', 'lifetime_purchased', "
+        "WHERE event IN ('paywall_reached', 'monthly_started', "
         "'annual_trial_started', 'notifications_enabled', 'notification_sent') "
         "ORDER BY user_id, received_at ASC",
         fetch="all",
@@ -582,10 +581,10 @@ def tokens_for_user(user_id):
 def send_push(user_id, title, body, route="monthly"):
     """Send an alert push to every device registered for this customer.
 
-    The payload carries a `route` ("monthly" or "lifetime") that tells the app
-    which offer paywall to open on tap; the app treats any unknown value as the
-    monthly offer. Tries the configured APNs environment first and falls back to
-    the other host on an environment-mismatch token error.
+    The payload carries a `route` ("monthly") that tells the app which offer
+    paywall to open on tap; the app treats any value as the monthly offer. Tries
+    the configured APNs environment first and falls back to the other host on an
+    environment-mismatch token error.
     """
     tokens = tokens_for_user(user_id)
     if not tokens:
@@ -656,7 +655,7 @@ def send_push(user_id, title, body, route="monthly"):
 
     # Record the send (with its copy + which offer) on the customer's timeline.
     if sent:
-        offer = "lifetime" if route == "lifetime" else "monthly"
+        offer = "monthly"
         text = " — ".join(p for p in [title, body] if p)
         suffix = f" ({offer})"
         record = {
@@ -885,7 +884,7 @@ class Handler(BaseHTTPRequestHandler):
             user_id = (body.get("userId") or "").strip()
             title = (body.get("title") or "").strip()
             text = (body.get("body") or "").strip()
-            route = "lifetime" if (body.get("route") == "lifetime") else "monthly"
+            route = "monthly"
             if not user_id or not (title or text):
                 self._reply(400, json.dumps({"error": "userId and a title or body are required"}),
                             "application/json")
