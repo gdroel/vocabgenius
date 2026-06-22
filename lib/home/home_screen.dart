@@ -7,6 +7,7 @@ import '../app_review.dart';
 import '../billing/account_screen.dart';
 import '../bookmarks/bookmarks_repository.dart';
 import '../onboarding/theme.dart';
+import '../telemetry.dart';
 import '../topics/topics_catalog.dart';
 import '../topics/topics_repository.dart';
 import '../topics/words_data.dart';
@@ -56,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
   // review prompt counts real swipes through words.
   void _onNextTapped(TopicsRepository repo) {
     _pickNext(repo);
+    final w = _current;
+    if (w != null) Telemetry.wordNext(w.word, w.topicId);
     _maybeRequestReview();
   }
 

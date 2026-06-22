@@ -83,6 +83,10 @@ CLIENT_EVENT_TYPES = {
     # A completed onboarding step. Carries `step` (the screen name) and an
     # optional `value` (what the user picked); both are stored on the event.
     "onboarding_step": {"label": "Onboarding step", "icon": "📝"},
+    # A free-text help request from the Account screen; `value` is the message.
+    "support_request": {"label": "Support request", "icon": "🆘"},
+    # The user tapped "Next" and saw a word; `value` is the word, `step` the topic.
+    "word_next": {"label": "Next word", "icon": "➡️"},
 }
 
 
@@ -470,6 +474,25 @@ def reengage_customers():
     return result
 
 
+def support_requests():
+    """Every support request, newest first, with the user id and message."""
+    rows = db_exec(
+        "SELECT user_id, received_at, data FROM client_events "
+        "WHERE event='support_request' ORDER BY id DESC LIMIT 500",
+        fetch="all",
+    )
+    out = []
+    for r in rows:
+        data = r["data"] or {}
+        out.append({
+            "userId": r["user_id"],
+            "received_at": r["received_at"],
+            "message": data.get("value", ""),
+            "environment": data.get("environment", "unknown"),
+        })
+    return out
+
+
 def trials_summary():
     """One row per free trial (grouped by originalTransactionId).
 
@@ -836,6 +859,8 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200, json.dumps(reengage_customers()), "application/json")
         elif self.path == "/trials":
             self._reply(200, json.dumps(trials_summary()), "application/json")
+        elif self.path == "/support":
+            self._reply(200, json.dumps(support_requests()), "application/json")
         elif self.path.split("?")[0] == "/customer":
             user_id = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             self._reply(200, json.dumps(customer_timeline(user_id)), "application/json")

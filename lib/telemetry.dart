@@ -77,6 +77,15 @@ class Telemetry {
   static void onboardingStep(String step, {String? value}) =>
       _send('onboarding_step', value: value, step: step);
 
+  /// The user submitted a support request from the Account screen; [message]
+  /// is the free text they typed.
+  static void supportRequest(String message) =>
+      _send('support_request', value: message);
+
+  /// The user tapped "Next" and was shown [word] (from topic [topicId]).
+  static void wordNext(String word, String topicId) =>
+      _send('word_next', value: word, step: topicId);
+
   static Future<void> _send(String event, {String? value, String? step}) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.

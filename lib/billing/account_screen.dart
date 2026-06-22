@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../onboarding/theme.dart';
+import '../telemetry.dart';
 import 'billing_service.dart';
 import 'legal_screen.dart';
 import 'paywall_screen.dart';
@@ -71,36 +71,53 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  static const _widgetChannel = MethodChannel('professor_pip/widget');
-
-  // DEBUG: surface what the device actually thinks the user owns, so we can tell
-  // whether a "words showing without a plan" report is a real bug or a leftover
-  // sandbox entitlement. Remove before shipping.
-  Future<void> _checkEntitlement() async {
-    List<dynamic> ids = const [];
-    try {
-      ids = await _widgetChannel.invokeMethod('storeKitEntitlements') ?? const [];
-    } catch (_) {}
-    final isPro = _billing?.isPro ?? false;
-    if (!mounted) return;
-    await showDialog<void>(
+  // Collect a free-text support message and send it to the dashboard, where it
+  // surfaces in the Support section so we can follow up.
+  Future<void> _getSupport() async {
+    final controller = TextEditingController();
+    final message = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Entitlement debug'),
-        content: Text(
-          'RevenueCat isPro: $isPro\n'
-          'StoreKit entitlements: ${ids.isEmpty ? 'NONE' : ids.join(', ')}\n\n'
-          'If StoreKit shows any product, this Apple ID has an active '
-          '(likely sandbox) subscription — that is why the widget shows words. '
-          'Clear it in Settings → App Store → Sandbox Account, or use a fresh '
-          'sandbox tester.',
+      builder: (ctx) => AlertDialog(
+        title: const Text('Get support'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Tell us what\'s going on and we\'ll get back to you. '
+              'Add your email if you\'d like a reply.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                hintText: 'Describe your issue…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Send'),
           ),
         ],
+      ),
+    );
+    controller.dispose();
+    if (message == null || message.isEmpty) return;
+    Telemetry.supportRequest(message);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Thanks — your message was sent. We\'ll be in touch.'),
       ),
     );
   }
@@ -155,12 +172,11 @@ class _AccountScreenState extends State<AccountScreen> {
                       onTap: _openCustomerCenter,
                     ),
                     const SizedBox(height: 24),
-                    // DEBUG ONLY — remove before shipping.
-                    const _SectionLabel(text: 'Debug'),
+                    const _SectionLabel(text: 'Support'),
                     _AccountRow(
-                      icon: Icons.bug_report_rounded,
-                      label: 'Check entitlement (debug)',
-                      onTap: _checkEntitlement,
+                      icon: Icons.help_outline_rounded,
+                      label: 'Get support',
+                      onTap: _getSupport,
                     ),
                     const SizedBox(height: 24),
                     const _SectionLabel(text: 'Legal'),
