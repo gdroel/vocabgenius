@@ -31,6 +31,12 @@ const pipMonthlyTwoProductId = 'professorpipmonthlytwo';
 // SDK default and would not find a one-time product).
 const lifetimeProductId = 'professorpiplifetime';
 
+// The bumped-price annual plan ($83.99/yr). Targeted by product id rather than
+// the offering's $rc_annual package so the paywall always charges this exact
+// SKU; the original annual plan still exists for current subscribers. Buying it
+// grants the same [proEntitlementId].
+const annualPlan84ProductId = 'profpipannualplan84';
+
 const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
 class BillingService extends ChangeNotifier {
@@ -41,6 +47,7 @@ class BillingService extends ChangeNotifier {
   Offering? _currentOffering;
   StoreProduct? _pipMonthlyTwoProduct;
   StoreProduct? _lifetimeProduct;
+  StoreProduct? _annualPlan84Product;
   String? _lastError;
 
   // Set once RevenueCat is configured. Reading the app user id before this is
@@ -156,6 +163,45 @@ class BillingService extends ChangeNotifier {
   /// Buys the annual package from the current offering.
   /// Returns true if the user now has the Pro entitlement.
   Future<bool> buyAnnual() => _purchase(annualPackage);
+
+  /// The bumped-price annual product (profpipannualplan84), once loaded via
+  /// [loadAnnualPlan84].
+  StoreProduct? get annualPlan84Product => _annualPlan84Product;
+
+  /// Localized, store-formatted price for the bumped annual product
+  /// (e.g. "$83.99"), or null until [loadAnnualPlan84] has resolved it.
+  String? get annualPlan84PriceLabel => _annualPlan84Product?.priceString;
+
+  /// Fetches [annualPlan84ProductId] from the store so its localized price is
+  /// available for the paywall. Best-effort and idempotent.
+  Future<void> loadAnnualPlan84() async {
+    if (_annualPlan84Product != null) return;
+    try {
+      final products = await Purchases.getProducts([annualPlan84ProductId]);
+      if (products.isNotEmpty) {
+        _annualPlan84Product = products.first;
+        notifyListeners();
+      }
+    } on PlatformException {
+      // Best-effort: leave the fallback price in place.
+    }
+  }
+
+  /// Buys the bumped-price annual plan (profpipannualplan84). Targets the
+  /// product directly so the paywall always charges this exact SKU regardless
+  /// of how the current offering is wired. Grants the same Pro entitlement as
+  /// every other plan. Surfaces an error rather than charging anything else if
+  /// the product can't be loaded.
+  Future<bool> buyAnnualPlan84() async {
+    await loadAnnualPlan84();
+    final product = _annualPlan84Product;
+    if (product == null) {
+      _lastError = 'This offer is unavailable right now. Please try again.';
+      notifyListeners();
+      return false;
+    }
+    return _runPurchase(PurchaseParams.storeProduct(product), product);
+  }
 
   /// Buys the monthly package from the current offering.
   Future<bool> buyMonthly() => _purchase(monthlyPackage);

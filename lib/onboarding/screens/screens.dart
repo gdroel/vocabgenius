@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Chip;
 import 'package:flutter/services.dart';
-import '../../app_review.dart';
 import '../../billing/paywall_screen.dart';
 import '../../notifications/notifications_service.dart';
 import '../../push_service.dart';
@@ -751,9 +750,6 @@ class Step04bLockscreenIntro extends StatelessWidget {
             PrimaryButton(
               label: 'Nice!',
               onPressed: () {
-                // Prompt for an App Store review as the user leaves the
-                // lockscreen page (iOS decides whether to actually show it).
-                AppReview.request();
                 cb.next();
               },
             ),
@@ -1924,6 +1920,213 @@ class Step22OneMinuteADay extends StatelessWidget {
       ),
     );
   }
+}
+
+// 22b. Personalized plan summary — recaps what we set up before the trial pitch.
+class Step22bPlanReady extends StatelessWidget {
+  final StepCallbacks cb;
+  const Step22bPlanReady({super.key, required this.cb});
+  @override
+  Widget build(BuildContext context) {
+    final data = OnboardingScope.of(context);
+    final followed = TopicsScope.of(context).followed;
+    final titles = {for (final t in TopicsCatalog.all) t.id: t.title};
+    final topicNames = followed.map((id) => titles[id] ?? id).toList();
+    final topicsText = topicNames.isEmpty
+        ? 'Tailored to you'
+        : topicNames.length <= 2
+        ? topicNames.join(' and ')
+        : '${topicNames.take(2).join(', ')} +${topicNames.length - 2} more';
+    final remindersText =
+        data.notificationsEnabled ? 'Daily word of the day' : 'Not set yet';
+    return OnboardingScaffold(
+      progress: cb.progress,
+      onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          children: [
+            const Spacer(flex: 1),
+            const TitleHeader(
+              title: 'Your personalized\nplan is ready',
+              subtitle: 'Enjoy it for free with a 3-day trial',
+            ),
+            const SizedBox(height: 28),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: Brutal.borderColor,
+                  width: Brutal.borderWidth,
+                ),
+                boxShadow: Brutal.shadow(dx: 4, dy: 6),
+              ),
+              child: Column(
+                children: [
+                  const _PlanRow(
+                    icon: Icons.track_changes,
+                    label: 'Your level',
+                    value: 'Intermediate to Advanced',
+                  ),
+                  _PlanRow(
+                    icon: Icons.grid_view_rounded,
+                    label: 'Topics of interest',
+                    value: topicsText,
+                  ),
+                  _PlanRow(
+                    icon: Icons.notifications_outlined,
+                    label: 'Your reminders',
+                    value: remindersText,
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(flex: 2),
+            PrimaryButton(label: 'Continue', onPressed: cb.next),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// A single labelled row inside the personalized-plan card.
+class _PlanRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _PlanRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 28, color: AppColors.forestGreen),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.ink,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 22c–22e. Plain, centered trial-explainer messages, each on its own screen.
+class _CenteredMessageScreen extends StatelessWidget {
+  final StepCallbacks cb;
+  final String message;
+  const _CenteredMessageScreen({required this.cb, required this.message});
+  @override
+  Widget build(BuildContext context) {
+    return OnboardingScaffold(
+      progress: cb.progress,
+      onBack: cb.back,
+      onSkip: cb.skip,
+      showSkip: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          children: [
+            const Spacer(flex: 3),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const Spacer(flex: 4),
+            PrimaryButton(label: 'Continue', onPressed: cb.next),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 22c. How the free trial works.
+class Step22cTrialIntro extends StatelessWidget {
+  final StepCallbacks cb;
+  const Step22cTrialIntro({super.key, required this.cb});
+  @override
+  Widget build(BuildContext context) => _CenteredMessageScreen(
+    cb: cb,
+    message: "Here's how your\nfree trial works\n(you can cancel anytime!)",
+  );
+}
+
+// 22d. What the trial unlocks.
+class Step22dUnlimitedAccess extends StatelessWidget {
+  final StepCallbacks cb;
+  const Step22dUnlimitedAccess({super.key, required this.cb});
+  @override
+  Widget build(BuildContext context) => _CenteredMessageScreen(
+    cb: cb,
+    message: 'You get unlimited\nfree access to everything\nfor three days',
+  );
+}
+
+// 22e. Reminder before the trial ends, dated relative to today.
+class Step22eTrialReminder extends StatelessWidget {
+  final StepCallbacks cb;
+  const Step22eTrialReminder({super.key, required this.cb});
+  @override
+  Widget build(BuildContext context) {
+    final date = _formatTrialDate(DateTime.now().add(const Duration(days: 3)));
+    return _CenteredMessageScreen(
+      cb: cb,
+      message:
+          'Then on $date you get a reminder that your trial ends soon',
+    );
+  }
+}
+
+String _formatTrialDate(DateTime d) {
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return '${months[d.month - 1]} ${d.day}';
 }
 
 // 23. Three days free — Pip pitch over a live lockscreen demo of the widget.

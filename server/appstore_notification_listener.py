@@ -75,6 +75,7 @@ CLIENT_EVENT_TYPES = {
     "app_opened": {"label": "Opened app", "icon": "📱"},
     "app_closed": {"label": "Closed app", "icon": "👋"},
     "paywall_reached": {"label": "Reached paywall", "icon": "💳"},
+    "retention_offer_shown": {"label": "Saw retention offer", "icon": "🎀"},
     "notification_screen": {"label": "Reached notification screen", "icon": "🔔"},
     "notifications_enabled": {"label": "Enabled notifications", "icon": "✅"},
     "annual_trial_started": {"label": "Started annual trial", "icon": "🎁"},

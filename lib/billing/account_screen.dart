@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../notifications/notifications_service.dart';
 import '../onboarding/theme.dart';
 import 'billing_service.dart';
 import 'legal_screen.dart';
@@ -70,6 +72,29 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  // DEMO ONLY — fires a sample word-of-the-day notification 15s from now and
+  // sets the lock-screen widget word to "spurious". Remove before shipping.
+  static const _widgetChannel = MethodChannel('professor_pip/widget');
+  Future<void> _sendDemoWordOfDay() async {
+    // Change the lock-screen widget word immediately on tap.
+    try {
+      await _widgetChannel.invokeMethod('setLastWord', {
+        'topicId': 'demo',
+        'word': 'spurious',
+        'pos': 'adj',
+        'definition': 'false but designed to seem plausible',
+      });
+    } catch (_) {
+      // Channel only exists on iOS; ignore elsewhere.
+    }
+    await NotificationsService.instance.requestIosPermission();
+    await NotificationsService.instance.scheduleDemoWordOfDay();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Word of the day arriving in 15s…')),
+    );
+  }
+
   void _openPaywall() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -118,6 +143,14 @@ class _AccountScreenState extends State<AccountScreen> {
                       icon: Icons.settings_rounded,
                       label: 'Manage subscription',
                       onTap: _openCustomerCenter,
+                    ),
+                    const SizedBox(height: 24),
+                    // DEMO ONLY — remove before shipping.
+                    const _SectionLabel(text: 'Demo'),
+                    _AccountRow(
+                      icon: Icons.notifications_active_rounded,
+                      label: 'Send word of the day (15s)',
+                      onTap: _sendDemoWordOfDay,
                     ),
                     const SizedBox(height: 24),
                     const _SectionLabel(text: 'Legal'),

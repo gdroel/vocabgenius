@@ -45,11 +45,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void initState() {
     super.initState();
     Telemetry.paywallReached();
-    Posthog().isFeatureEnabled('hard-paywall').then((enabled) {
-      if (!mounted) return;
-      setState(() => _hardPaywall = enabled);
-      if (enabled) _scheduleAutoOffer();
-    }).catchError((_) {});
+    Posthog()
+        .isFeatureEnabled('hard-paywall')
+        .then((enabled) {
+          if (!mounted) return;
+          setState(() => _hardPaywall = enabled);
+          if (enabled) _scheduleAutoOffer();
+        })
+        .catchError((_) {});
   }
 
   /// On a hard paywall, auto-reveal the discounted exit offer after 15s — the
@@ -101,7 +104,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      final ok = await billing.buyAnnual();
+      final ok = await billing.buyAnnualPlan84();
       if (ok) Telemetry.annualTrialStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -118,7 +121,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
         setState(() => _reminderBeforeTrialEnds = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Enable notifications in Settings to get the reminder.'),
+            content: Text(
+              'Enable notifications in Settings to get the reminder.',
+            ),
           ),
         );
         return;
@@ -133,29 +138,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
-  Future<void> _restore() async {
-    final billing = _billing;
-    if (billing == null) return;
-    setState(() => _busy = true);
-    try {
-      await billing.restore();
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   /// Exit-intent offer shown when the user taps the round X on a hard paywall:
-  /// a popover pitching the discounted ~$2/mo plan. The dialog runs the purchase
-  /// itself (so it stays up with a "Working…" button while the IAP sheet shows)
-  /// and dismisses once Pro is granted; the paywall's billing listener then
-  /// navigates away.
+  /// a popover pitching the $4.99/mo "pipmonthly" plan at 25% off. The dialog
+  /// runs the purchase itself (so it stays up with a "Working…" button while the
+  /// IAP sheet shows) and dismisses once Pro is granted; the paywall's billing
+  /// listener then navigates away. The monthly package price comes from the
+  /// already-loaded offering, so nothing extra needs warming here.
   void _showSpecialOffer() {
     // A manual tap pre-empts the auto-reveal so the popover never opens twice.
     _offerTimer?.cancel();
     final billing = _billing;
     if (billing == null) return;
-    // Warm the discounted product so its real store price is ready.
-    billing.loadPipMonthlyTwo();
+    Telemetry.retentionOfferShown();
     _offerClaiming = true;
     showDialog<void>(
       context: context,
@@ -167,17 +161,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    // Live store prices, falling back to list price until the offering resolves.
-    final annualPrice = billing?.annualPriceLabel ?? '\$59.99';
-    final monthlyPrice = billing?.monthlyPriceLabel ?? '\$4.99';
-    // The pitch as styled runs so the prices render bold inside the bubble:
-    // "Try 3 days for free, then $4.99 per month. (billed as $59.99 per year)".
+    // The pitch as styled runs so the weekly price renders bold inside the
+    // bubble: "Try 3 days for free, then just $1.62 a week!".
     final headlineSegments = <(String, bool)>[
-      ('Try 3 days for free, then ', false),
-      (monthlyPrice, true),
-      (' per month. (billed as ', false),
-      (annualPrice, true),
-      (' per year)', false),
+      ('Try 3 days for free, then just ', false),
+      ('\$1.62 a week!', true),
+      ('\n(billed annually)', false),
     ];
     return Scaffold(
       backgroundColor: AppColors.cream,
@@ -261,14 +250,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 color: AppColors.forestGreen,
                 pulse: true,
               ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: _busy ? null : _restore,
-                child: const Text(
-                  'Privacy   Terms & Conditions   Restore',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.muted, fontSize: 10),
-                ),
+              const SizedBox(height: 20),
+              Text(
+                'No payment due today, cancel anytime!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.ink, fontSize: 16),
               ),
             ],
           ),
@@ -466,7 +452,7 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
                           const Positioned(
                             top: -6,
                             right: -6,
-                            child: _DiscountBadge(),
+                            child: _DiscountBadge(percent: 60),
                           ),
                       ],
                     ),
@@ -518,7 +504,8 @@ class _OfferPaywallScreenState extends State<OfferPaywallScreen> {
 }
 
 class _DiscountBadge extends StatefulWidget {
-  const _DiscountBadge();
+  final int percent;
+  const _DiscountBadge({required this.percent});
 
   @override
   State<_DiscountBadge> createState() => _DiscountBadgeState();
@@ -530,8 +517,10 @@ class _DiscountBadgeState extends State<_DiscountBadge>
     vsync: this,
     duration: const Duration(milliseconds: 850),
   )..repeat(reverse: true);
-  late final Animation<double> _scale = Tween<double>(begin: 0.92, end: 1.1)
-      .animate(CurvedAnimation(parent: _ctl, curve: Curves.easeInOut));
+  late final Animation<double> _scale = Tween<double>(
+    begin: 0.92,
+    end: 1.1,
+  ).animate(CurvedAnimation(parent: _ctl, curve: Curves.easeInOut));
 
   @override
   void dispose() {
@@ -544,45 +533,45 @@ class _DiscountBadgeState extends State<_DiscountBadge>
     return ScaleTransition(
       scale: _scale,
       child: Transform.rotate(
-      angle: 0.18,
-      child: Container(
-        width: 88,
-        height: 88,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.success,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Brutal.borderColor,
-            width: Brutal.borderWidth,
+        angle: 0.18,
+        child: Container(
+          width: 88,
+          height: 88,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.success,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Brutal.borderColor,
+              width: Brutal.borderWidth,
+            ),
+            boxShadow: Brutal.shadow(dx: 2, dy: 3),
           ),
-          boxShadow: Brutal.shadow(dx: 2, dy: 3),
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '60%',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                height: 1.0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${widget.percent}%',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  height: 1.0,
+                ),
               ),
-            ),
-            Text(
-              'OFF',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
-                height: 1.1,
+              const Text(
+                'OFF',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                  height: 1.1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -607,18 +596,14 @@ class _ReminderToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Reminder before trial ends',
-              style: TextStyle(
-                color: AppColors.ink,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+              style: appText(size: 19, weight: FontWeight.w700),
             ),
           ),
           Transform.scale(
-            scale: 0.85,
+            scale: 1.15,
             child: Switch(
               value: value,
               onChanged: onChanged,
@@ -644,8 +629,10 @@ class _PipBubble extends StatefulWidget {
   // it points left (Pip sits beside the bubble).
   final bool tailOnTop;
   const _PipBubble({this.text, this.segments, this.tailOnTop = false})
-      : assert(text != null || segments != null,
-            'Provide either text or segments');
+    : assert(
+        text != null || segments != null,
+        'Provide either text or segments',
+      );
 
   /// The full string being typed out, regardless of styling.
   String get plainText =>
@@ -659,12 +646,14 @@ class _PipBubbleState extends State<_PipBubble>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctl = AnimationController(
     vsync: this,
-    duration:
-        Duration(milliseconds: (widget.plainText.length * 60).clamp(900, 3200)),
+    duration: Duration(
+      milliseconds: (widget.plainText.length * 60).clamp(900, 3200),
+    ),
   );
-  late final Animation<int> _chars =
-      StepTween(begin: 0, end: widget.plainText.length)
-          .animate(CurvedAnimation(parent: _ctl, curve: Curves.linear));
+  late final Animation<int> _chars = StepTween(
+    begin: 0,
+    end: widget.plainText.length,
+  ).animate(CurvedAnimation(parent: _ctl, curve: Curves.linear));
 
   int _lastTickedAt = 0;
 
@@ -701,8 +690,9 @@ class _PipBubbleState extends State<_PipBubble>
     for (final (segText, isBold) in widget.segments!) {
       if (consumed >= shown) break;
       final remaining = shown - consumed;
-      final piece =
-          segText.length <= remaining ? segText : segText.substring(0, remaining);
+      final piece = segText.length <= remaining
+          ? segText
+          : segText.substring(0, remaining);
       spans.add(TextSpan(text: piece, style: isBold ? boldStyle : null));
       consumed += segText.length;
     }
@@ -718,73 +708,80 @@ class _PipBubbleState extends State<_PipBubble>
             ? const EdgeInsets.fromLTRB(20, 28, 20, 18)
             : const EdgeInsets.fromLTRB(26, 14, 18, 16),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Professor Pip',
-            style: TextStyle(
-              color: AppColors.burgundy,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+          crossAxisAlignment: widget.tailOnTop
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Professor Pip',
+              style: TextStyle(
+                color: AppColors.burgundy,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          AnimatedBuilder(
-            animation: _chars,
-            builder: (_, _) {
-              final isTyping = _chars.value < widget.plainText.length;
-              // Segments use a lighter, more readable Inter face; plain text
-              // keeps the heavy display style used by the other Pip bubbles.
-              final baseStyle = widget.segments != null
-                  ? GoogleFonts.inter(
-                      color: AppColors.ink,
-                      fontSize: 21,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    )
-                  : const TextStyle(
-                      color: AppColors.ink,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
-                    );
-              final reveal = RichText(
-                text: TextSpan(
-                  style: baseStyle,
+            const SizedBox(height: 6),
+            AnimatedBuilder(
+              animation: _chars,
+              builder: (_, _) {
+                final isTyping = _chars.value < widget.plainText.length;
+                // Segments use a lighter, more readable Inter face; plain text
+                // keeps the heavy display style used by the other Pip bubbles.
+                final baseStyle = widget.segments != null
+                    ? GoogleFonts.inter(
+                        color: AppColors.ink,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      )
+                    : const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      );
+                final align = widget.tailOnTop
+                    ? TextAlign.center
+                    : TextAlign.start;
+                final reveal = RichText(
+                  textAlign: align,
+                  text: TextSpan(
+                    style: baseStyle,
+                    children: [
+                      ..._visibleSpans(_chars.value, baseStyle),
+                      if (isTyping)
+                        const TextSpan(
+                          text: '▍',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
+                    ],
+                  ),
+                );
+                // Reserve the final size with an invisible copy of the full text
+                // so the bubble never reflows (resizes) as it types — that resize
+                // is what made the fill look jerky.
+                return Stack(
                   children: [
-                    ..._visibleSpans(_chars.value, baseStyle),
-                    if (isTyping)
-                      const TextSpan(
-                        text: '▍',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
-                  ],
-                ),
-              );
-              // Reserve the final size with an invisible copy of the full text
-              // so the bubble never reflows (resizes) as it types — that resize
-              // is what made the fill look jerky.
-              return Stack(
-                children: [
-                  Opacity(
-                    opacity: 0,
-                    child: RichText(
-                      text: TextSpan(
-                        style: baseStyle,
-                        children: _visibleSpans(
-                          widget.plainText.length,
-                          baseStyle,
+                    Opacity(
+                      opacity: 0,
+                      child: RichText(
+                        textAlign: align,
+                        text: TextSpan(
+                          style: baseStyle,
+                          children: _visibleSpans(
+                            widget.plainText.length,
+                            baseStyle,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned.fill(child: reveal),
-                ],
-              );
-            },
-          ),
-        ],
+                    Positioned.fill(child: reveal),
+                  ],
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -800,7 +797,9 @@ class _SpeechBubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final radius = const Radius.circular(22);
-    final path = tailOnTop ? _topTailPath(size, radius) : _leftTailPath(size, radius);
+    final path = tailOnTop
+        ? _topTailPath(size, radius)
+        : _leftTailPath(size, radius);
 
     // Drop shadow
     canvas.drawPath(
@@ -885,9 +884,20 @@ class _CloseButton extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: const Padding(
-        padding: EdgeInsets.all(8),
-        child: Icon(Icons.close, size: 24, color: AppColors.burgundy),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE02424),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Brutal.borderColor,
+            width: Brutal.borderWidth,
+          ),
+          boxShadow: Brutal.shadow(dx: 2, dy: 3),
+        ),
+        alignment: Alignment.center,
+        child: const Icon(Icons.close, size: 22, color: Colors.white),
       ),
     );
   }
@@ -907,7 +917,7 @@ class _RoundCloseButton extends StatelessWidget {
         width: 46,
         height: 46,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFE02424),
           shape: BoxShape.circle,
           border: Border.all(
             color: Brutal.borderColor,
@@ -916,7 +926,7 @@ class _RoundCloseButton extends StatelessWidget {
           boxShadow: Brutal.shadow(dx: 2, dy: 3),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.close, size: 26, color: AppColors.burgundy),
+        child: const Icon(Icons.close, size: 26, color: Colors.white),
       ),
     );
   }
@@ -935,14 +945,29 @@ class _SpecialOfferDialog extends StatefulWidget {
   State<_SpecialOfferDialog> createState() => _SpecialOfferDialogState();
 }
 
-class _SpecialOfferDialogState extends State<_SpecialOfferDialog> {
+class _SpecialOfferDialogState extends State<_SpecialOfferDialog>
+    with SingleTickerProviderStateMixin {
   bool _busy = false;
+
+  // Drives the gift bouncing up and down in front of Professor Pip.
+  late final AnimationController _bounceCtl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  )..repeat(reverse: true);
+  late final Animation<double> _bounce = Tween<double>(begin: 6, end: -16)
+      .animate(CurvedAnimation(parent: _bounceCtl, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _bounceCtl.dispose();
+    super.dispose();
+  }
 
   Future<void> _claim() async {
     setState(() => _busy = true);
-    // buyPipMonthlyTwo swallows its own errors and returns false on
-    // cancel/failure, so a try/finally isn't needed here.
-    final ok = await widget.billing.buyPipMonthlyTwo();
+    // buyPipMonthly swallows its own errors and returns false on cancel/failure,
+    // so a try/finally isn't needed here.
+    final ok = await widget.billing.buyPipMonthly();
     if (!mounted) return;
     if (!ok) {
       setState(() => _busy = false); // cancelled/failed — keep the offer up
@@ -966,6 +991,7 @@ class _SpecialOfferDialogState extends State<_SpecialOfferDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final monthlyPrice = widget.billing.pipMonthlyPriceLabel ?? '\$4.99';
     return Dialog(
       backgroundColor: AppColors.cream,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -976,69 +1002,133 @@ class _SpecialOfferDialogState extends State<_SpecialOfferDialog> {
           width: Brutal.borderWidth,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 290,
-              child: Lottie.asset(
-                'assets/lottie/gift.json',
-                fit: BoxFit.contain,
-                // Falls back to the static gift image if the Lottie ever fails
-                // to load, so the popover never renders broken.
-                errorBuilder: (_, _, _) =>
-                    Image.asset('assets/gift.png', fit: BoxFit.contain),
-              ),
-            ),
-            Text(
-              "Wait, don't leave!",
-              textAlign: TextAlign.center,
-              style: appText(size: 24, weight: FontWeight.w800, height: 1.15),
-            ),
-            const SizedBox(height: 10),
-            Text.rich(
-              TextSpan(
-                style: GoogleFonts.inter(
-                  color: AppColors.ink,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w500,
-                  height: 1.35,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 290,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Professor Pip — the centerpiece.
+                      Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Brutal.borderColor,
+                            width: Brutal.borderWidth,
+                          ),
+                          boxShadow: Brutal.shadow(dx: 3, dy: 4),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Transform.scale(
+                          scale: 1.3,
+                          child: Image.asset(
+                            'assets/hero-image.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      // The gift bounding up and down at his bottom-left.
+                      Positioned(
+                        bottom: 0,
+                        left: -75,
+                        child: AnimatedBuilder(
+                          animation: _bounce,
+                          builder: (_, child) => Transform.translate(
+                            offset: Offset(0, _bounce.value),
+                            child: child,
+                          ),
+                          child: SizedBox(
+                            height: 185,
+                            child: Lottie.asset(
+                              'assets/lottie/gift.json',
+                              fit: BoxFit.contain,
+                              // Falls back to the static gift image if the Lottie
+                              // ever fails to load, so it never renders broken.
+                              errorBuilder: (_, _, _) => Image.asset(
+                                'assets/gift.png',
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                children: const [
-                  TextSpan(text: 'Take '),
-                  TextSpan(
-                    text: '60% off',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                Text(
+                  "Wait, don't leave!",
+                  textAlign: TextAlign.center,
+                  style: appText(
+                    size: 24,
+                    weight: FontWeight.w800,
+                    height: 1.15,
                   ),
-                  TextSpan(text: ' Professor Pip, forever. Just '),
+                ),
+                const SizedBox(height: 10),
+                Text.rich(
                   TextSpan(
-                    text: '\$2 a month',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                    style: GoogleFonts.inter(
+                      color: AppColors.ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Unlock '),
+                      const TextSpan(
+                        text: '10,000 words',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const TextSpan(text: ' and '),
+                      const TextSpan(
+                        text: '15 topics',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const TextSpan(text: ' for '),
+                      TextSpan(
+                        text: '$monthlyPrice a month',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
                   ),
-                  TextSpan(text: ', cancel anytime.'),
-                ],
-              ),
-              textAlign: TextAlign.center,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                PrimaryButton(
+                  label: _busy ? 'Working…' : 'Unlock Everything',
+                  color: AppColors.giftRed,
+                  pulse: !_busy,
+                  onPressed: _busy ? null : _claim,
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Billed monthly, cancel anytime!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.muted, fontSize: 14),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            PrimaryButton(
-              label: _busy ? 'Working…' : 'Try for \$2 a month',
-              color: AppColors.giftRed,
-              pulse: !_busy,
-              onPressed: _busy ? null : _claim,
-            ),
-            const SizedBox(height: 6),
-            TextButton(
-              onPressed: _busy ? null : () => Navigator.of(context).pop(),
-              child: const Text(
-                'No thanks',
-                style: TextStyle(color: AppColors.muted, fontSize: 14),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const Positioned(
+            top: 12,
+            right: 12,
+            child: _DiscountBadge(percent: 25),
+          ),
+        ],
       ),
     );
   }

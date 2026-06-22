@@ -57,6 +57,10 @@ class Telemetry {
   /// The user granted notification permission (first allow).
   static void notificationsEnabled() => _send('notifications_enabled');
 
+  /// The exit-intent retention offer popover (25% off the monthly plan) was
+  /// shown to the user.
+  static void retentionOfferShown() => _send('retention_offer_shown');
+
   /// The user started the annual free trial.
   static void annualTrialStarted() => _send('annual_trial_started');
 

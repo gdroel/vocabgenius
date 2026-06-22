@@ -44,7 +44,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     ('Onboarding-19-AdvancedWords', (cb) => Step19AdvancedWords(cb: cb)),
     ('Onboarding-21-BuildingPlan', (cb) => Step21BuildingPlan(cb: cb)),
     ('Onboarding-22-OneMinuteADay', (cb) => Step22OneMinuteADay(cb: cb)),
-    ('Onboarding-23-ThreeDaysFree', (cb) => Step23ThreeDaysFree(cb: cb)),
+    ('Onboarding-22b-PlanReady', (cb) => Step22bPlanReady(cb: cb)),
+    ('Onboarding-22c-TrialIntro', (cb) => Step22cTrialIntro(cb: cb)),
+    ('Onboarding-22d-UnlimitedAccess', (cb) => Step22dUnlimitedAccess(cb: cb)),
+    ('Onboarding-22e-TrialReminder', (cb) => Step22eTrialReminder(cb: cb)),
     ('Onboarding-24-Trial', (cb) => Step24Trial(cb: cb)),
   ];
 

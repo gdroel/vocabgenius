@@ -16,6 +16,12 @@ class Topic {
 class TopicsCatalog {
   static const all = <Topic>[
     Topic(
+      id: 'soccer',
+      title: 'Soccer',
+      blurb: 'The language of the beautiful game',
+      icon: Icons.sports_soccer_rounded,
+    ),
+    Topic(
       id: 'beautiful',
       title: 'Beautiful words',
       blurb: 'Words you wish you used more often',

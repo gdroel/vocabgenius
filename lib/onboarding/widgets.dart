@@ -163,14 +163,22 @@ class _PrimaryButtonState extends State<PrimaryButton>
           boxShadow: pressed ? const [] : Brutal.shadow(dx: 4, dy: 6),
         ),
         alignment: Alignment.center,
-        child: Text(
-          widget.label,
-          // Inter (not the app serif, which caps at weight 700) so the CTA
-          // label renders genuinely heavy.
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
+        // Shrink-to-fit so long labels (e.g. the trial-price CTA) stay on one
+        // line; short labels keep their full 22px size.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.label,
+              // Inter (not the app serif, which caps at weight 700) so the CTA
+              // label renders genuinely heavy.
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ),
       ),

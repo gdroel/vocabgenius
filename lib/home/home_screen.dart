@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../app_review.dart';
 import '../billing/account_screen.dart';
 import '../bookmarks/bookmarks_repository.dart';
 import '../onboarding/theme.dart';
@@ -21,6 +23,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const _widgetChannel = MethodChannel('professor_pip/widget');
+  // Ask for an App Store review once the user has deliberately tapped through
+  // a few words, so the prompt lands on an engaged user rather than mid-onboarding.
+  static const _reviewTapsKey = 'review_word_taps';
+  static const _reviewPromptedKey = 'review_prompted';
+  static const _reviewTapThreshold = 3;
   final _rng = Random();
   Word? _current;
 
@@ -43,6 +50,25 @@ class _HomeScreenState extends State<HomeScreen> {
     final next = WordsData.randomFor(ids, rng: _rng);
     setState(() => _current = next);
     if (next != null) _pushWordToWidget(next);
+  }
+
+  // Handles a deliberate "Next" tap (not the automatic first-word load), so the
+  // review prompt counts real swipes through words.
+  void _onNextTapped(TopicsRepository repo) {
+    _pickNext(repo);
+    _maybeRequestReview();
+  }
+
+  Future<void> _maybeRequestReview() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_reviewPromptedKey) ?? false) return;
+    final taps = (prefs.getInt(_reviewTapsKey) ?? 0) + 1;
+    await prefs.setInt(_reviewTapsKey, taps);
+    if (taps >= _reviewTapThreshold) {
+      await prefs.setBool(_reviewPromptedKey, true);
+      // iOS decides whether to actually surface the prompt.
+      await AppReview.request();
+    }
   }
 
   Future<void> _pushWordToWidget(Word w) async {
@@ -135,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     settings: const RouteSettings(name: 'AccountScreen'),
                   ),
                 ),
-                onNext: () => _pickNext(repo),
+                onNext: () => _onNextTapped(repo),
                 onBookmark: word == null
                     ? () {}
                     : () => bookmarks.toggle(word),
