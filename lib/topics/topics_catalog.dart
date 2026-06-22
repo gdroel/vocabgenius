@@ -94,6 +94,30 @@ class TopicsCatalog {
       icon: Icons.spa_rounded,
     ),
     Topic(
+      id: 'socialscience',
+      title: 'Social science',
+      blurb: 'How societies, economies and people behave',
+      icon: Icons.groups_rounded,
+    ),
+    Topic(
+      id: 'biology',
+      title: 'Biology',
+      blurb: 'The vocabulary of living things',
+      icon: Icons.biotech_rounded,
+    ),
+    Topic(
+      id: 'sexology',
+      title: 'Sexology',
+      blurb: 'The science of desire and intimacy',
+      icon: Icons.local_fire_department_rounded,
+    ),
+    Topic(
+      id: 'everyday',
+      title: 'Useful in everyday life',
+      blurb: 'Sharp words you can actually use daily',
+      icon: Icons.lightbulb_outline_rounded,
+    ),
+    Topic(
       id: 'latin',
       title: 'Latin phrases',
       blurb: 'Carpe diem and 199 other classics',

@@ -32,7 +32,6 @@ const kLiteratureExtras2 = <Word>[
   Word('literature', 'coinage', 'n.', 'a word or phrase newly invented by a writer', 'The term \'cyberspace\' is a famous literary coinage.'),
   Word('literature', 'archaism', 'n.', 'a word or style that is deliberately old-fashioned', 'The poet uses archaism like \'thee\' to evoke a bygone age.'),
   Word('literature', 'anachronistic', 'adj.', 'belonging to a period other than the one depicted', 'A wristwatch in a medieval scene is jarringly anachronistic.'),
-  Word('literature', 'ambiguity', 'n.', 'openness to more than one interpretation', 'The ending\'s ambiguity sparked endless reader debate.'),
   Word('literature', 'paradox', 'n.', 'a statement that seems contradictory yet reveals a truth', 'The poem turns on the paradox that loss can be a kind of gain.'),
   Word('literature', 'epigrammatic', 'adj.', 'expressed in a witty, terse, memorable form', 'Wilde\'s epigrammatic wit fills every page.'),
   Word('literature', 'aphoristic', 'adj.', 'composed of concise statements of general truth', 'The essay\'s aphoristic style packs wisdom into single lines.'),

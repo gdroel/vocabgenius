@@ -17,6 +17,10 @@ export 'travel_extras2.dart' show kTravelExtras2;
 export 'music_extras2.dart' show kMusicExtras2;
 export 'love_extras2.dart' show kLoveExtras2;
 export 'beautiful_extras2.dart' show kBeautifulExtras2;
+export 'socialscience_extras.dart' show kSocialScienceExtras;
+export 'biology_extras.dart' show kBiologyExtras;
+export 'sexology_extras.dart' show kSexologyExtras;
+export 'everyday_extras.dart' show kEverydayExtras;
 
 const kScienceExtras = <Word>[
   Word('science', 'quantum', 'adj.', 'Of the smallest discrete units of energy or matter', 'In quantum mechanics, an electron can be in two places at once.'),
@@ -100,7 +104,6 @@ const kScienceExtras = <Word>[
   Word('science', 'lift', 'n.', 'The upward force on a wing moving through air', 'Wings generate lift mostly through the shape of the airflow over them.'),
   Word('science', 'thrust', 'n.', 'The forward push from an engine or propellor', 'The rocket\'s thrust climbed past its own weight and it left the pad.'),
   Word('science', 'stress', 'n.', 'Force per area inside a material', 'Bridge designers calculate the stress at every joint.'),
-  Word('science', 'strain', 'n.', 'How much a material deforms under stress', 'Rubber takes huge strain before breaking; cast iron almost none.'),
   Word('science', 'elastic modulus', 'n.', 'A material\'s stiffness, stress divided by strain', 'Steel has a much higher elastic modulus than aluminum.'),
   Word('science', 'yield strength', 'n.', 'The stress at which a material starts to bend permanently', 'The frame stayed below its yield strength in every load test.'),
   Word('science', 'isothermal', 'adj.', 'Happening at a constant temperature', 'The piston compressed the gas in a slow, nearly isothermal stroke.'),
@@ -166,7 +169,6 @@ const kScienceExtras = <Word>[
   Word('science', 'transistor', 'n.', 'A semiconductor switch and amplifier', 'A modern phone chip packs billions of transistors per square centimeter.'),
   Word('science', 'diode', 'n.', 'A component that lets current flow only one way', 'A diode protects the circuit if the battery is dropped in backwards.'),
   Word('science', 'refraction', 'n.', 'Light bending as it crosses between two media', 'A straw in water looks broken because of refraction.'),
-  Word('science', 'reflection', 'n.', 'Light bouncing off a surface', 'Total internal reflection is what makes fiber optic cables work.'),
   Word('science', 'diffraction', 'n.', 'Waves bending around obstacles or through openings', 'A CD\'s rainbow is diffraction off its tiny pit grid.'),
   Word('science', 'birefringence', 'n.', 'A material splitting light into two beams', 'Calcite\'s birefringence doubles any image viewed through it.'),
   Word('science', 'dispersion', 'n.', 'Different colors of light traveling at different speeds in a medium', 'Dispersion in a prism spreads sunlight into a rainbow.'),
@@ -364,7 +366,6 @@ const kScienceExtras = <Word>[
   Word('science', 'etiology', 'n.', 'The cause of a disease', 'The etiology of the new syndrome is still debated.'),
   Word('science', 'prognosis', 'n.', 'The likely course of a disease', 'Early detection improves prognosis for most cancers.'),
   Word('science', 'syndrome', 'n.', 'A pattern of symptoms appearing together', 'Restless leg syndrome can disrupt sleep for years.'),
-  Word('science', 'niche', 'n.', 'A species\' role and place in its ecosystem', 'Two species can\'t share exactly the same niche for long.'),
   Word('science', 'habitat', 'n.', 'The physical place a species lives', 'Salmon need cold, clean water as their habitat.'),
   Word('science', 'population', 'n.', 'A group of individuals of one species in one area', 'The wolf population in the park has tripled since reintroduction.'),
   Word('science', 'community', 'n.', 'All the species sharing one place', 'A coral reef is one of the densest communities on Earth.'),
@@ -432,7 +433,6 @@ const kScienceExtras = <Word>[
   Word('science', 'subduction', 'n.', 'One tectonic plate sliding under another', 'Subduction zones are the source of Earth\'s deepest earthquakes.'),
   Word('science', 'rift', 'n.', 'A long crack where the crust is pulling apart', 'The East African Rift is slowly tearing a new ocean open.'),
   Word('science', 'fault', 'n.', 'A fracture in rock where blocks have moved', 'The San Andreas fault slips little by little, then sometimes a lot.'),
-  Word('science', 'fold', 'n.', 'A bend in once-flat rock layers', 'The road cut shows a textbook fold of buckled sandstone.'),
   Word('science', 'anticline', 'n.', 'A fold arching upward like an arch', 'An anticline often traps oil where impermeable rock seals the top.'),
   Word('science', 'syncline', 'n.', 'A fold sagging downward like a trough', 'Water collects along the syncline running across the valley.'),
   Word('science', 'orogeny', 'n.', 'A mountain-building event', 'The Alpine orogeny is still going, lifting peaks centimeter by century.'),
@@ -441,7 +441,6 @@ const kScienceExtras = <Word>[
   Word('science', 'sill', 'n.', 'A sheet of magma intruded between rock layers', 'A thick sill caps the hill like a frozen river of basalt.'),
   Word('science', 'intrusion', 'n.', 'Magma forcing its way into older rock', 'The intrusion cooled slowly enough to grow visible mineral crystals.'),
   Word('science', 'extrusion', 'n.', 'Lava reaching the surface from below', 'A fresh extrusion of basalt covered the village in a single afternoon.'),
-  Word('science', 'lava', 'n.', 'Molten rock that has erupted onto the surface', 'Hawaiian lava flows can travel kilometers before crusting over.'),
   Word('science', 'pumice', 'n.', 'A light, frothy volcanic rock full of bubbles', 'Pumice is light enough to float on water.'),
   Word('science', 'basalt', 'n.', 'A common dark, fine-grained volcanic rock', 'The ocean floor is mostly basalt.'),
   Word('science', 'granite', 'n.', 'A coarse-grained light rock from cooled magma', 'Granite countertops are slabs of slowly cooled intrusion.'),
@@ -495,7 +494,6 @@ const kScienceExtras = <Word>[
   Word('science', 'main sequence', 'n.', 'The long, stable, hydrogen-burning phase of most stars', 'The sun has been on the main sequence for nearly five billion years.'),
   Word('science', 'accretion', 'n.', 'Material gradually piling up under gravity', 'Planets form by accretion of dust and pebbles around a young star.'),
   Word('science', 'exoplanet', 'n.', 'A planet orbiting a star other than the sun', 'Thousands of exoplanets have been confirmed since the first in 1995.'),
-  Word('science', 'transit', 'n.', 'A planet crossing in front of its star, dimming it slightly', 'A regular transit signal hints at a planet hiding around a distant sun.'),
   Word('science', 'occultation', 'n.', 'A body blocking another from view', 'The moon\'s occultation of Saturn lasted just over an hour.'),
   Word('science', 'retrograde', 'adj.', 'Moving in the opposite of the usual direction', 'Venus rotates in retrograde compared to most of the planets.'),
   Word('science', 'prograde', 'adj.', 'Moving in the usual direction of orbit', 'Most moons orbit prograde with their planet\'s spin.'),
@@ -529,7 +527,6 @@ const kScienceExtras = <Word>[
   Word('science', 'regression', 'n.', 'A method that fits a function to data', 'Linear regression is the workhorse of empirical research.'),
   Word('science', 'residual', 'n.', 'The gap between a data point and a model\'s prediction', 'A pattern in the residuals usually means your model is missing something.'),
   Word('science', 'outlier', 'n.', 'A data point that lies far from the rest', 'One stubborn outlier was distorting the average.'),
-  Word('science', 'sample', 'n.', 'A small group selected to stand in for a larger one', 'A bigger sample shrinks the error around the estimate.'),
   Word('science', 'inference', 'n.', 'Reaching conclusions from limited data', 'Statistical inference lets us guess at populations from a sample.'),
   Word('science', 'confidence interval', 'n.', 'A range that\'s likely to contain the true value', 'The 95% confidence interval ran from twelve to fifteen.'),
   Word('science', 'type i error', 'n.', 'Concluding an effect exists when it really doesn\'t', 'Repeated testing without correction inflates the rate of type I errors.'),

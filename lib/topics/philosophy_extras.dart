@@ -30,7 +30,6 @@ const kPhilosophyExtras = <Word>[
   Word('philosophy', 'efficient-cause', 'n.', 'The agent that brings something about', 'The sculptor is the efficient cause of the marble bust.'),
   Word('philosophy', 'unmoved-mover', 'n.', 'A first cause that moves others without being moved', 'Aristotle\'s unmoved mover draws the cosmos toward itself by attraction.'),
   Word('philosophy', 'prime-matter', 'n.', 'Featureless stuff that takes on form to become a thing', 'Prime matter is never encountered alone, only as informed substance.'),
-  Word('philosophy', 'act', 'n.', 'A thing\'s realized state, as opposed to mere potential', 'For Aquinas, God is pure act with no unrealized potential.'),
   Word('philosophy', 'potency', 'n.', 'A capacity to become or do something not yet actual', 'Water has the potency to freeze given the right conditions.'),
   Word('philosophy', 'analogia-entis', 'n.', 'The analogical likeness between creatures and God', 'The analogia entis lets us speak of divine goodness without flattening it.'),
   Word('philosophy', 'natural-law', 'n.', 'Moral norms held to follow from human nature itself', 'Aquinas grounded natural law in reason participating in eternal law.'),
