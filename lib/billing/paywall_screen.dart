@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -34,6 +36,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
   // navigation, so the paywall's auto-onPurchased must stand down to avoid two
   // navigations fighting over the same route stack.
   bool _offerClaiming = false;
+  // Hard paywall only: surfaces the exit-intent offer on its own after a short
+  // dwell, so undecided users see it without reaching for the close button.
+  Timer? _offerTimer;
   BillingService? _billing;
 
   @override
@@ -43,7 +48,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
     Posthog().isFeatureEnabled('hard-paywall').then((enabled) {
       if (!mounted) return;
       setState(() => _hardPaywall = enabled);
+      if (enabled) _scheduleAutoOffer();
     }).catchError((_) {});
+  }
+
+  /// On a hard paywall, auto-reveal the discounted exit offer after 15s — the
+  /// same popover the round X shows — so undecided users get it without having
+  /// to tap close. Fires once; manual taps and dispose cancel it.
+  void _scheduleAutoOffer() {
+    _offerTimer?.cancel();
+    _offerTimer = Timer(const Duration(seconds: 15), () {
+      // Skip if we've navigated away, already converted, are mid-purchase, or
+      // an offer popover is already up.
+      if (!mounted || _busy || _offerClaiming || (_billing?.isPro ?? false)) {
+        return;
+      }
+      _showSpecialOffer();
+    });
   }
 
   @override
@@ -60,6 +81,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   @override
   void dispose() {
+    _offerTimer?.cancel();
     _billing?.removeListener(_onBillingChange);
     super.dispose();
   }
@@ -128,6 +150,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   /// and dismisses once Pro is granted; the paywall's billing listener then
   /// navigates away.
   void _showSpecialOffer() {
+    // A manual tap pre-empts the auto-reveal so the popover never opens twice.
+    _offerTimer?.cancel();
     final billing = _billing;
     if (billing == null) return;
     // Warm the discounted product so its real store price is ready.
