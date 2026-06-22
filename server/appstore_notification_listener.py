@@ -459,6 +459,56 @@ def reengage_customers():
     return result
 
 
+def trials_summary():
+    """One row per free trial (grouped by originalTransactionId).
+
+    Pairs each TRIAL_STARTED with a later TRIAL_CANCELLED on the same
+    subscription. Cancelled trials come first, oldest cancellation first;
+    still-active trials (started, never cancelled) sit at the bottom, oldest
+    start first.
+    """
+    rows = db_exec(
+        "SELECT data FROM notifications "
+        "WHERE data->>'lifecycle' IN ('TRIAL_STARTED', 'TRIAL_CANCELLED') "
+        "ORDER BY id ASC",
+        fetch="all",
+    )
+    trials = {}
+    for r in rows:
+        d = r["data"] or {}
+        # Fall back to transactionId if Apple omitted the original id.
+        key = d.get("originalTransactionId") or d.get("transactionId") or d.get("received_at")
+        t = trials.setdefault(key, {
+            "originalTransactionId": key,
+            "environment": d.get("environment") or "unknown",
+            "product": d.get("product"),
+            "startedAt": None,
+            "cancelledAt": None,
+            "expires": None,
+        })
+        when = d.get("received_at")
+        if d.get("lifecycle") == "TRIAL_STARTED":
+            if t["startedAt"] is None or (when and when < t["startedAt"]):
+                t["startedAt"] = when
+        else:  # TRIAL_CANCELLED — keep the latest cancellation
+            if t["cancelledAt"] is None or (when and when > t["cancelledAt"]):
+                t["cancelledAt"] = when
+        if d.get("product"):
+            t["product"] = d.get("product")
+        if d.get("expires"):
+            t["expires"] = d.get("expires")
+    result = list(trials.values())
+    for t in result:
+        t["status"] = "cancelled" if t["cancelledAt"] else "active"
+    # Cancelled (rank 0) before active (rank 1); within each, oldest first by the
+    # relevant timestamp (cancellation time for cancelled, start time for active).
+    result.sort(key=lambda t: (
+        0 if t["status"] == "cancelled" else 1,
+        (t["cancelledAt"] if t["status"] == "cancelled" else t["startedAt"]) or "",
+    ))
+    return result
+
+
 # ---- Push notifications (APNs) -------------------------------------------
 
 APNS_HOSTS = {
@@ -740,6 +790,8 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(200, json.dumps(converted_customers()), "application/json")
         elif self.path == "/reengage":
             self._reply(200, json.dumps(reengage_customers()), "application/json")
+        elif self.path == "/trials":
+            self._reply(200, json.dumps(trials_summary()), "application/json")
         elif self.path.split("?")[0] == "/customer":
             user_id = parse_qs(urlparse(self.path).query).get("id", [""])[0]
             self._reply(200, json.dumps(customer_timeline(user_id)), "application/json")
