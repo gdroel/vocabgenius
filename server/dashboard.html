@@ -129,7 +129,15 @@
 
   <!-- Customers -->
   <section id="view-customers" style="display:none">
-    <div class="toolbar"><span class="meta" id="custCount">0 customers</span></div>
+    <div class="toolbar">
+      <span class="meta" id="custCount">0 customers</span>
+      <label class="meta">order by
+        <select id="custSort" onchange="renderCustomers(lastCustomers)">
+          <option value="firstSeen">first event (downloaded)</option>
+          <option value="lastSeen">most recent event</option>
+        </select>
+      </label>
+    </div>
     <div class="cust-layout">
       <div class="cust-list" id="custList"><div class="empty">No customers yet…</div></div>
       <div id="custDetail"><div class="empty">Select a customer to see their timeline.</div></div>
@@ -333,11 +341,16 @@ function renderCustomers(customers) {
     customers.length + (customers.length === 1 ? ' customer' : ' customers');
   const list = document.getElementById('custList');
   if (!customers.length) { list.innerHTML = '<div class="empty">No customers yet…</div>'; return; }
-  list.innerHTML = customers.map(c => {
+  const sortKey = document.getElementById('custSort').value; // 'firstSeen' | 'lastSeen'
+  const sorted = customers.slice().sort((a, b) =>
+    (b[sortKey] || '').localeCompare(a[sortKey] || ''));
+  list.innerHTML = sorted.map(c => {
     const opened = c.counts.app_opened || 0;
     const paywall = c.counts.paywall_reached || 0;
     const notif = c.counts.notification_screen || 0;
     const enabled = c.counts.notifications_enabled || 0;
+    const icon = sortKey === 'firstSeen' ? '⬇️' : '🕑';
+    const ts = c[sortKey];
     return `<div class="cust-item ${c.userId === selectedCustomer ? 'active' : ''}"
                  onclick="selectCustomer('${esc(c.userId)}')">
       <div class="id">${esc(c.userId)}</div>
@@ -346,7 +359,7 @@ function renderCustomers(customers) {
         <span class="pill">💳 ${paywall}</span>
         <span class="pill">🔔 ${notif}</span>
         <span class="pill">✅ ${enabled}</span>
-        <span style="margin-left:auto">${c.lastSeen ? fmtTime(c.lastSeen) : ''}</span>
+        <span style="margin-left:auto">${ts ? icon + ' ' + fmtTime(ts) : ''}</span>
       </div>
     </div>`;
   }).join('');

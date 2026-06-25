@@ -87,6 +87,8 @@ CLIENT_EVENT_TYPES = {
     "support_request": {"label": "Support request", "icon": "🆘"},
     # The user tapped "Next" and saw a word; `value` is the word, `step` the topic.
     "word_next": {"label": "Next word", "icon": "➡️"},
+    # The user bookmarked a word; `value` is the word, `step` the topic.
+    "word_bookmarked": {"label": "Bookmarked word", "icon": "🔖"},
 }
 
 
@@ -333,9 +335,14 @@ def store_client_event(user_id, event, environment="unknown", value=None, step=N
 
 
 def customers_summary():
-    """One row per customer: id, totals, per-event counts, last-seen time."""
+    """One row per customer: id, totals, per-event counts, first/last-seen time.
+
+    firstSeen (the earliest event we ever recorded for a user) is effectively
+    when they downloaded the app, so the dashboard can order by it.
+    """
     rows = db_exec(
-        "SELECT user_id, event, COUNT(*) AS n, MAX(received_at) AS last "
+        "SELECT user_id, event, COUNT(*) AS n, "
+        "MIN(received_at) AS first, MAX(received_at) AS last "
         "FROM client_events GROUP BY user_id, event",
         fetch="all",
     )
@@ -343,14 +350,18 @@ def customers_summary():
     for r in rows:
         c = customers.setdefault(
             r["user_id"],
-            {"userId": r["user_id"], "total": 0, "counts": {}, "lastSeen": None},
+            {"userId": r["user_id"], "total": 0, "counts": {},
+             "firstSeen": None, "lastSeen": None},
         )
         c["counts"][r["event"]] = r["n"]
         c["total"] += r["n"]
+        if c["firstSeen"] is None or r["first"] < c["firstSeen"]:
+            c["firstSeen"] = r["first"]
         if c["lastSeen"] is None or r["last"] > c["lastSeen"]:
             c["lastSeen"] = r["last"]
     result = list(customers.values())
-    result.sort(key=lambda x: x["lastSeen"] or "", reverse=True)
+    # Newest downloads first.
+    result.sort(key=lambda x: x["firstSeen"] or "", reverse=True)
     return result
 
 
