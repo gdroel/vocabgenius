@@ -5,8 +5,6 @@ import 'package:timezone/timezone.dart' as tz;
 import '../topics/words_data.dart';
 
 class NotificationsService {
-  static const _trialReminderId = 1001;
-
   // A fixed id range for the daily "word of the day" notifications so the whole
   // batch can be cancelled and rescheduled together.
   static const _wordOfDayBaseId = 2000;
@@ -46,28 +44,6 @@ class NotificationsService {
       sound: true,
     );
     return granted ?? false;
-  }
-
-  Future<void> scheduleTrialReminder({Duration delay = const Duration(days: 2)}) async {
-    await init();
-    final fireAt = tz.TZDateTime.now(tz.local).add(delay);
-    await _plugin.zonedSchedule(
-      _trialReminderId,
-      'Your Professor Pip starts tomorrow!',
-      "You've learned 24 words in your first two days with me. Let's keep the ball rolling!",
-      fireAt,
-      const NotificationDetails(
-        iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  }
-
-  Future<void> cancelTrialReminder() async {
-    await init();
-    await _plugin.cancel(_trialReminderId);
   }
 
   /// Schedules a daily "word of the day" notification at 10am local time for

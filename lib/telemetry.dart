@@ -86,6 +86,10 @@ class Telemetry {
   static void wordNext(String word, String topicId) =>
       _send('word_next', value: word, step: topicId);
 
+  /// The user bookmarked [word] (from topic [topicId]).
+  static void wordBookmarked(String word, String topicId) =>
+      _send('word_bookmarked', value: word, step: topicId);
+
   static Future<void> _send(String event, {String? value, String? step}) async {
     // Safe even before RevenueCat is configured: returns null rather than
     // crashing the SDK. A null id is recorded as "anonymous" server-side.

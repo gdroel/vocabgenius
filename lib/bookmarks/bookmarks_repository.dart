@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../telemetry.dart';
 import '../topics/words_data.dart';
 
 class BookmarksRepository extends ChangeNotifier {
@@ -35,6 +36,7 @@ class BookmarksRepository extends ChangeNotifier {
       _saved.removeAt(i);
     } else {
       _saved.insert(0, w);
+      Telemetry.wordBookmarked(w.word, w.topicId);
     }
     notifyListeners();
     await _persist();
