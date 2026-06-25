@@ -24,11 +24,17 @@ const proEntitlementId = 'Professor Pip Pro';
 // the same [proEntitlementId].
 const pipMonthlyTwoProductId = 'professorpipmonthlytwo';
 
-// The bumped-price annual plan ($83.99/yr). Targeted by product id rather than
+// The annual plan ($47.99/yr ≈ $3.99/mo). Targeted by product id rather than
 // the offering's $rc_annual package so the paywall always charges this exact
-// SKU; the original annual plan still exists for current subscribers. Buying it
+// SKU; the original annual plans still exist for current subscribers. Buying it
 // grants the same [proEntitlementId].
-const annualPlan84ProductId = 'profpipannualplan84';
+const pip48ProductId = 'professorpip48';
+
+// The retention-offer monthly plan ($2.99/mo — 25% off the standard monthly),
+// shown in the exit-intent popover. Targeted by product id so the offer always
+// charges this exact discounted SKU regardless of the current offering's wiring.
+// Buying it grants the same [proEntitlementId].
+const pip3ProductId = 'professorpip3';
 
 const _entitlementCacheKey = 'pip_entitlement_active_v1';
 
@@ -39,7 +45,8 @@ class BillingService extends ChangeNotifier {
   bool _configured = false;
   Offering? _currentOffering;
   StoreProduct? _pipMonthlyTwoProduct;
-  StoreProduct? _annualPlan84Product;
+  StoreProduct? _pip48Product;
+  StoreProduct? _pip3Product;
   String? _lastError;
 
   // Set once RevenueCat is configured. Reading the app user id before this is
@@ -186,22 +193,21 @@ class BillingService extends ChangeNotifier {
   /// Returns true if the user now has the Pro entitlement.
   Future<bool> buyAnnual() => _purchase(annualPackage);
 
-  /// The bumped-price annual product (profpipannualplan84), once loaded via
-  /// [loadAnnualPlan84].
-  StoreProduct? get annualPlan84Product => _annualPlan84Product;
+  /// The annual product (professorpip48), once loaded via [loadPip48].
+  StoreProduct? get pip48Product => _pip48Product;
 
-  /// Localized, store-formatted price for the bumped annual product
-  /// (e.g. "$83.99"), or null until [loadAnnualPlan84] has resolved it.
-  String? get annualPlan84PriceLabel => _annualPlan84Product?.priceString;
+  /// Localized, store-formatted price for the annual product (e.g. "$47.99"),
+  /// or null until [loadPip48] has resolved it.
+  String? get pip48PriceLabel => _pip48Product?.priceString;
 
-  /// Fetches [annualPlan84ProductId] from the store so its localized price is
+  /// Fetches [pip48ProductId] from the store so its localized price is
   /// available for the paywall. Best-effort and idempotent.
-  Future<void> loadAnnualPlan84() async {
-    if (_annualPlan84Product != null) return;
+  Future<void> loadPip48() async {
+    if (_pip48Product != null) return;
     try {
-      final products = await Purchases.getProducts([annualPlan84ProductId]);
+      final products = await Purchases.getProducts([pip48ProductId]);
       if (products.isNotEmpty) {
-        _annualPlan84Product = products.first;
+        _pip48Product = products.first;
         notifyListeners();
       }
     } on PlatformException {
@@ -209,14 +215,54 @@ class BillingService extends ChangeNotifier {
     }
   }
 
-  /// Buys the bumped-price annual plan (profpipannualplan84). Targets the
-  /// product directly so the paywall always charges this exact SKU regardless
-  /// of how the current offering is wired. Grants the same Pro entitlement as
-  /// every other plan. Surfaces an error rather than charging anything else if
-  /// the product can't be loaded.
-  Future<bool> buyAnnualPlan84() async {
-    await loadAnnualPlan84();
-    final product = _annualPlan84Product;
+  /// Buys the annual plan (professorpip48). Targets the product directly so the
+  /// paywall always charges this exact SKU regardless of how the current
+  /// offering is wired. Grants the same Pro entitlement as every other plan.
+  /// Surfaces an error rather than charging anything else if the product can't
+  /// be loaded.
+  Future<bool> buyPip48() async {
+    await loadPip48();
+    final product = _pip48Product;
+    if (product == null) {
+      _lastError = 'This offer is unavailable right now. Please try again.';
+      notifyListeners();
+      return false;
+    }
+    return _runPurchase(PurchaseParams.storeProduct(product), product);
+  }
+
+  /// The retention-offer monthly product (professorpip3), once loaded via
+  /// [loadPip3].
+  StoreProduct? get pip3Product => _pip3Product;
+
+  /// Localized, store-formatted price for the retention-offer product
+  /// (e.g. "$2.99"), or null until [loadPip3] has resolved it.
+  String? get pip3PriceLabel => _pip3Product?.priceString;
+
+  /// Fetches [pip3ProductId] from the store so its localized price is available
+  /// for the exit-intent offer. Best-effort and idempotent.
+  Future<void> loadPip3() async {
+    if (_pip3Product != null) return;
+    try {
+      final products = await Purchases.getProducts([pip3ProductId]);
+      if (products.isNotEmpty) {
+        _pip3Product = products.first;
+        notifyListeners();
+      }
+    } on PlatformException {
+      // Best-effort: leave the fallback price in place.
+    }
+  }
+
+  /// Buys the discounted retention-offer plan (professorpip3). Targets the
+  /// product directly so the exit-intent offer always charges this exact
+  /// 25%-off SKU. Grants the same Pro entitlement as every other plan.
+  /// Deliberately does NOT fall back to the full-price monthly — charging more
+  /// than the advertised price would be wrong, so an unavailable product
+  /// surfaces an error instead.
+  Future<bool> buyPip3() async {
+    await loadPip3();
+    final product = _pip3Product;
     if (product == null) {
       _lastError = 'This offer is unavailable right now. Please try again.';
       notifyListeners();

@@ -97,8 +97,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _billing = billing;
       _wasPro = billing.isPro;
       billing.addListener(_onBillingChange);
-      // Warm the annual product so review mode can show its real store price.
-      billing.loadAnnualPlan84();
+      // Warm the annual product (review mode shows its real store price) and the
+      // retention-offer product so the exit popover has its price ready.
+      billing.loadPip48();
+      billing.loadPip3();
     }
   }
 
@@ -145,7 +147,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (billing == null) return;
     setState(() => _busy = true);
     try {
-      final ok = await billing.buyAnnualPlan84();
+      final ok = await billing.buyPip48();
       if (ok) Telemetry.annualTrialStarted();
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -169,12 +171,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
         );
         return;
       }
-      await NotificationsService.instance.scheduleTrialReminder();
-      if (!mounted) return;
+      // The "trial ends" reminder is delivered by Apple, so we no longer
+      // schedule a custom local notification here; the toggle only governs
+      // notification permission (and the daily word-of-day perk).
       setState(() => _reminderBeforeTrialEnds = true);
     } else {
-      await NotificationsService.instance.cancelTrialReminder();
-      if (!mounted) return;
       setState(() => _reminderBeforeTrialEnds = false);
     }
   }
@@ -202,17 +203,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final billing = _billing;
-    final annualPrice = billing?.annualPlan84PriceLabel ?? '\$83.99';
-    // Normal mode bolds the weekly price. Review mode instead bolds the explicit
-    // annual charge for App Store reviewers (and leaves the weekly line plain).
+    final annualPrice = billing?.pip48PriceLabel ?? '\$47.99';
+    // Normal mode bolds the monthly price. Review mode instead bolds the explicit
+    // annual charge for App Store reviewers (and leaves the monthly line plain).
     final headlineSegments = _inReview
         ? <(String, bool)>[
-            ('Try 3 days for free, then just \$1.62 a week!', false),
+            ('Try 3 days for free, then just \$3.99 a month!', false),
             ('\n(billed annually as $annualPrice per year)', true),
           ]
         : <(String, bool)>[
             ('Try 3 days for free, then just ', false),
-            ('\$1.62 a week!', true),
+            ('\$3.99 a month!', true),
             ('\n(billed annually)', false),
           ];
     return Scaffold(
@@ -280,7 +281,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ),
               ),
               const SizedBox(height: 14),
-              if (_hardPaywall) ...[
+              // Hidden in App Store review mode: the toggle's reminder is now
+              // handled by Apple, so reviewers shouldn't see a dead control.
+              if (_hardPaywall && !_inReview) ...[
                 _ReminderToggle(
                   value: _reminderBeforeTrialEnds,
                   onChanged: _onReminderToggle,
@@ -976,7 +979,7 @@ class _CloseButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: const Color(0xFFE02424),
+          color: Colors.white,
           shape: BoxShape.circle,
           border: Border.all(
             color: Brutal.borderColor,
@@ -985,7 +988,7 @@ class _CloseButton extends StatelessWidget {
           boxShadow: Brutal.shadow(dx: 2, dy: 3),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.close, size: 22, color: Colors.white),
+        child: const Icon(Icons.close, size: 22, color: AppColors.ink),
       ),
     );
   }
@@ -1005,7 +1008,7 @@ class _RoundCloseButton extends StatelessWidget {
         width: 46,
         height: 46,
         decoration: BoxDecoration(
-          color: const Color(0xFFE02424),
+          color: Colors.white,
           shape: BoxShape.circle,
           border: Border.all(
             color: Brutal.borderColor,
@@ -1014,7 +1017,7 @@ class _RoundCloseButton extends StatelessWidget {
           boxShadow: Brutal.shadow(dx: 2, dy: 3),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.close, size: 26, color: Colors.white),
+        child: const Icon(Icons.close, size: 26, color: AppColors.ink),
       ),
     );
   }
@@ -1053,9 +1056,9 @@ class _SpecialOfferDialogState extends State<_SpecialOfferDialog>
 
   Future<void> _claim() async {
     setState(() => _busy = true);
-    // buyPipMonthly swallows its own errors and returns false on cancel/failure,
+    // buyPip3 swallows its own errors and returns false on cancel/failure,
     // so a try/finally isn't needed here.
-    final ok = await widget.billing.buyPipMonthly();
+    final ok = await widget.billing.buyPip3();
     if (!mounted) return;
     if (!ok) {
       setState(() => _busy = false); // cancelled/failed — keep the offer up
@@ -1079,7 +1082,7 @@ class _SpecialOfferDialogState extends State<_SpecialOfferDialog>
 
   @override
   Widget build(BuildContext context) {
-    final monthlyPrice = widget.billing.pipMonthlyPriceLabel ?? '\$4.99';
+    final monthlyPrice = widget.billing.pip3PriceLabel ?? '\$2.99';
     return Dialog(
       backgroundColor: AppColors.cream,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1195,7 +1198,7 @@ class _SpecialOfferDialogState extends State<_SpecialOfferDialog>
                 ),
                 const SizedBox(height: 20),
                 PrimaryButton(
-                  label: _busy ? 'Working…' : 'Unlock Everything',
+                  label: _busy ? 'Working…' : 'Unlock for \$3/mo',
                   color: AppColors.giftRed,
                   pulse: !_busy,
                   onPressed: _busy ? null : _claim,
